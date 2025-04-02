@@ -76,6 +76,13 @@ namespace SMSwitch.Services.Twilio
 				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).Contains(l.LanguageId))?.ToIsoCodeString()
 				??
 				"en";
+
+			if (!_supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Contains(locale))
+			{
+				var localeAsLanguageIsoCode = HumanHelper.CreateLanguageIsoCode(locale);
+				locale = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.FirstOrDefault(isoCode => isoCode == localeAsLanguageIsoCode.ToIsoCodeString('-') || isoCode == localeAsLanguageIsoCode.LanguageId.ToString()) ?? "en";
+			}
+
             try
             {
                 var verification = await VerificationResource.CreateAsync(
