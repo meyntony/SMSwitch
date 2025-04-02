@@ -80,7 +80,8 @@ namespace SMSwitch.Services.Twilio
 			if (!_supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Contains(locale))
 			{
 				var localeAsLanguageIsoCode = HumanHelper.CreateLanguageIsoCode(locale);
-				locale = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.FirstOrDefault(isoCode => isoCode == localeAsLanguageIsoCode.ToIsoCodeString('-') || isoCode == localeAsLanguageIsoCode.LanguageId.ToString()) ?? "en";
+				locale = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.FirstOrDefault(isoCode => isoCode == localeAsLanguageIsoCode.ToIsoCodeString('-') 
+				|| isoCode == localeAsLanguageIsoCode.LanguageId.ToString()) ?? "en";
 			}
 
             try

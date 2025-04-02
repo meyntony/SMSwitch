@@ -31,13 +31,21 @@ namespace SMSwitch.Services.Plivo
 
 		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent)
 		{
+			string preferredLocale = "en";
 			try 
 			{
-				var preferredLocale = preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Contains(l))?.ToIsoCodeString()
+				preferredLocale = preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Contains(l))?.ToIsoCodeString()
 				??
 				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).Contains(l.LanguageId))?.ToIsoCodeString()
 				??
 				"en";
+
+				if (!_supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Contains(preferredLocale))
+				{
+					var localeAsLanguageIsoCode = HumanHelper.CreateLanguageIsoCode(preferredLocale);
+					preferredLocale = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.FirstOrDefault(isoCode => isoCode == localeAsLanguageIsoCode.ToIsoCodeString('-')
+					|| isoCode == localeAsLanguageIsoCode.LanguageId.ToString()) ?? "en";
+				}
 
 				var verifySessionResponse = _plivoInitializer.PlivoApi.VerifySession.Create(
 					recipient: mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber,
@@ -62,7 +70,7 @@ namespace SMSwitch.Services.Plivo
 			}
 			catch(Exception exception)
 			{
-				_logger.LogError(exception, "Could not send OTP to +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
+				_logger.LogError(exception, "Could not send OTP to +{MobileNumber} in {preferredLocale}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber, preferredLocale);
 				return new SMSwitchResponseSendOTP()
 				{
 					IsSent = false
