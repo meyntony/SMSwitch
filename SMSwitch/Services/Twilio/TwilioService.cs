@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using SMSwitch.Common;
 using SMSwitch.Common.DTOs;
+using Twilio.Rest.Api.V2010.Account;
 using Twilio.Rest.Verify.V2.Service;
 
 namespace SMSwitch.Services.Twilio
@@ -110,8 +111,31 @@ namespace SMSwitch.Services.Twilio
 
         public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage)
         {
-            throw new NotImplementedException();
-        }
+			try
+			{
+				var message = await MessageResource.CreateAsync(
+					to: new Twilio.Types.PhoneNumber($"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}"),
+					from: _twilioInitializer.TwilioSettings.TwilioPrivateSettings.RegisteredSenderPhoneNumber,
+					body: shortMessageServiceMessage
+				);
+
+				if (!string.IsNullOrEmpty(message?.Sid))
+				{
+					_logger.LogInformation("SMS sent successfully to +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
+					return true;
+				}
+				else
+				{
+					_logger.LogWarning("Failed to send SMS to +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
+					return false;
+				}
+			}
+			catch (Exception exception)
+			{
+				_logger.LogError(exception, "Error occurred while sending SMS to +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
+				return false;
+			}
+		}
 
         public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
         {
