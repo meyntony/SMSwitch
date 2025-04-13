@@ -4,6 +4,7 @@ using SMSwitch.Common;
 using SMSwitch.Common.DTOs;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.Rest.Verify.V2.Service;
+using Twilio.Types;
 
 namespace SMSwitch.Services.Twilio
 {
@@ -114,7 +115,7 @@ namespace SMSwitch.Services.Twilio
 			try
 			{
 				var message = await MessageResource.CreateAsync(
-					to: new Twilio.Types.PhoneNumber($"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}"),
+					to: new PhoneNumber($"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}"),
 					from: _twilioInitializer.TwilioSettings.TwilioPrivateSettings.RegisteredSenderPhoneNumber,
 					body: shortMessageServiceMessage
 				);

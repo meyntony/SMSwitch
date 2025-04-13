@@ -1,4 +1,5 @@
 ﻿using SMSwitch.Common;
+using Twilio.Types;
 
 namespace SMSwitch.Services.Twilio
 {
@@ -11,6 +12,6 @@ namespace SMSwitch.Services.Twilio
 		public required string AccountSid { get; init; }
 		public required string AuthToken { get; init; }
 		public required string ServiceSid { get; init; }
-		public required string RegisteredSenderPhoneNumber { get; init; }
+		public required PhoneNumber RegisteredSenderPhoneNumber { get; init; }
 	}
 }

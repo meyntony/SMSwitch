@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using SMSwitch.Common;
 using Twilio;
 using Twilio.Rest.Verify.V2;
+using Twilio.Types;
 
 namespace SMSwitch.Services.Twilio
 {
@@ -26,7 +27,7 @@ namespace SMSwitch.Services.Twilio
 						AccountSid = twilioConfig["AccountSid"],
 						AuthToken = twilioConfig["AuthToken"],
 						ServiceSid = twilioConfig["ServiceSid"],
-						RegisteredSenderPhoneNumber = twilioConfig["RegisteredSenderPhoneNumber"],
+						RegisteredSenderPhoneNumber = new PhoneNumber(twilioConfig["RegisteredSenderPhoneNumber"]),
 					}
 				};
 
