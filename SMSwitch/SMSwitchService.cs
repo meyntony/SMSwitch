@@ -40,13 +40,32 @@ namespace SMSwitch
 			_logger = logger;
 		}
 
-		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent)
+		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60)
 		{
 			SMSwitchResponseSendOTP responseSendOTP = null;
 			SMSwitchSession session = null;
 			try 
 			{
 				session = await _smSwitchDbService.GetOrCreateAndGetLatestSession(mobileWithCountryCode);
+
+				if (session is null)
+				{
+					_logger.LogError("Unable to send OTP to {PhoneNumber} becuase no session was created!!", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
+					return new SMSwitchResponseSendOTP()
+					{
+						IsSent = false
+					};
+				}
+
+				if (session.SentAttempts?.Any() ?? false)
+				{
+					var latestSentAttempt = session.SentAttempts.Last();
+					if ((latestSentAttempt?.Response?.IsSent ?? false) && latestSentAttempt.AttemptTimeInUTC.AddSeconds(resendCooldownPeriodInSeconds) > DateTimeOffset.UtcNow)
+					{
+						_logger.LogInformation("OTP already sent to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
+						return latestSentAttempt.Response;
+					}
+				}
 
 				Queue<SmsProvider> smsProvidersQueue = null;
 				if (session.SmsProvidersQueue?.Any() ?? false)
@@ -80,7 +99,7 @@ namespace SMSwitch
 
 				while (smsProvidersQueue.Any())
 				{
-					if (session.SentAttempts?.Any() ?? false)
+					if (session?.SentAttempts?.Any() ?? false)
 					{
 						smsProvidersQueue.Dequeue();
 						if (!smsProvidersQueue.Any())
@@ -95,7 +114,7 @@ namespace SMSwitch
 						_ => throw new NotImplementedException(),
 					};
 
-					session.SentAttempts.Add(new AttemptDetailsSendOTP(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), responseSendOTP.IsSent));
+					session?.SentAttempts?.Add(new AttemptDetailsSendOTP(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), responseSendOTP));
 					if (responseSendOTP.IsSent)
 					{
 						break;

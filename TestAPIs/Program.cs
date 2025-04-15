@@ -29,10 +29,11 @@ app.UseHttpsRedirection();
 
 
 app.MapPost("/sendotp", async (SMSwitchService smsSwitchService,
-	string countryIsoCode = "IN",
-	string countryPhoneCode = "91",
+	string countryIsoCode = "DK",
+	string countryPhoneCode = "45",
 	string phoneNumber = "",
-	string preferredLanguageIsoCode = "en") =>
+	string preferredLanguageIsoCode = "en",
+	byte resendCooldownPeriodInSeconds = 30) =>
 {
 	var mobileNumber = new MobileNumber() {
 		CountryIsoCodeString = countryIsoCode,
@@ -42,17 +43,14 @@ app.MapPost("/sendotp", async (SMSwitchService smsSwitchService,
 	var languageCodes = new HashSet<LanguageIsoCode> { HumanHelper.CreateLanguageIsoCode(preferredLanguageIsoCode) };
 	
 
-	var response = await smsSwitchService.SendOTP(mobileNumber, languageCodes, UserAgent.WebBrowser );
-	return response.IsSent
-		? Results.Ok($"OTP sent to {mobileNumber.CountryPhoneCodeAndPhoneNumber}")
-		: Results.BadRequest("Failed to send OTP");
+	return await smsSwitchService.SendOTP(mobileNumber, languageCodes, UserAgent.WebBrowser, resendCooldownPeriodInSeconds);
 })
 .WithName("SendOTP")
 .WithOpenApi();
 
 app.MapPost("/verifyotp", async (SMSwitchService smsSwitchService,
-	string countryIsoCode = "IN",
-	string countryPhoneCode = "91",
+	string countryIsoCode = "DK",
+	string countryPhoneCode = "45",
 	string phoneNumber = "",
 	string oneTimePassword = "") =>
 {
@@ -63,17 +61,14 @@ app.MapPost("/verifyotp", async (SMSwitchService smsSwitchService,
 		PhoneNumber = phoneNumber
 	};
 
-	var response = await smsSwitchService.VerifyOTP(mobileNumber, oneTimePassword);
-	return response.Verified
-		? Results.Ok($"OTP verified for {mobileNumber.CountryPhoneCodeAndPhoneNumber}")
-		: Results.BadRequest("Failed to verify OTP");
+	return await smsSwitchService.VerifyOTP(mobileNumber, oneTimePassword);
 })
 .WithName("VerifyOTP")
 .WithOpenApi();
 
 app.MapPost("/sendsms", async (SMSwitchService smsSwitchService,
-	string countryIsoCode = "IN",
-	string countryPhoneCode = "91",
+	string countryIsoCode = "DK",
+	string countryPhoneCode = "45",
 	string phoneNumber = "",
 	string message="") =>
 {
@@ -84,10 +79,7 @@ app.MapPost("/sendsms", async (SMSwitchService smsSwitchService,
 		PhoneNumber = phoneNumber
 	};
 
-	var isSent = await smsSwitchService.SendSMS(mobileNumber, message);
-	return isSent
-		? Results.Ok($"SMS sent to {mobileNumber.CountryPhoneCodeAndPhoneNumber}")
-		: Results.BadRequest("Failed to send SMS");
+	return await smsSwitchService.SendSMS(mobileNumber, message);
 })
 .WithName("SendSMS")
 .WithOpenApi();
