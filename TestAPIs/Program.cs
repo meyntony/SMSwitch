@@ -70,7 +70,8 @@ app.MapPost("/sendsms", async (SMSwitchService smsSwitchService,
 	string countryIsoCode = "DK",
 	string countryPhoneCode = "45",
 	string phoneNumber = "",
-	string message="") =>
+	string message="",
+	byte resendCooldownPeriodInSeconds = 30) =>
 {
 	var mobileNumber = new MobileNumber()
 	{
@@ -79,7 +80,7 @@ app.MapPost("/sendsms", async (SMSwitchService smsSwitchService,
 		PhoneNumber = phoneNumber
 	};
 
-	return await smsSwitchService.SendSMS(mobileNumber, message);
+	return await smsSwitchService.SendSMS(mobileNumber, message, resendCooldownPeriodInSeconds);
 })
 .WithName("SendSMS")
 .WithOpenApi();

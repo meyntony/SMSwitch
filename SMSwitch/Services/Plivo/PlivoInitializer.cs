@@ -32,7 +32,8 @@ namespace SMSwitch.Services.Plivo
 					{
 						AuthId = plivoConfig["AuthId"],
 						AuthToken = plivoConfig["AuthToken"],
-						AppUuid = plivoConfig["AppUuid"]
+						AppUuid = plivoConfig["AppUuid"],
+						SourceNumber = plivoConfig["SourceNumber"]
 					}
 				};
 

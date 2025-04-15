@@ -13,12 +13,12 @@ namespace SMSwitch.Database.DTOs
 		public required DateTimeOffset ExpiryTimeUTC { get; init; }
 		public Queue<SmsProvider>? SmsProvidersQueue { get; set; }
 		public List<AttemptDetailsSendSMS> SentAttempts { get; init; } = [];
-		public List<DateTimeOffset> FailedVerificationAttemptsDateTimeOffset { get; set; } = [];
-		public DateTimeOffset? SuccessfullyVerifiedTimestampUTC { get; set; }
+		public List<DateTimeOffset> FailedAttemptsDateTimeOffset { get; set; } = [];
+		public DateTimeOffset? SuccessfullySentTimestampUTC { get; set; }
 		internal bool HasNotExpired(byte maximumFailedAttemptsToVerify) =>
 			(SmsProvidersQueue?.Any() ?? true) && // if it has become empty from failed attempts then it has expired
-			FailedVerificationAttemptsDateTimeOffset.Count() < maximumFailedAttemptsToVerify &&
-			SuccessfullyVerifiedTimestampUTC == null &&
+			FailedAttemptsDateTimeOffset.Count() < maximumFailedAttemptsToVerify &&
+			SuccessfullySentTimestampUTC == null &&
 			DateTimeOffset.UtcNow < ExpiryTimeUTC;
 	}
 }

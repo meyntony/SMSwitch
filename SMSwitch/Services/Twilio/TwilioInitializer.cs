@@ -27,7 +27,7 @@ namespace SMSwitch.Services.Twilio
 						AccountSid = twilioConfig["AccountSid"],
 						AuthToken = twilioConfig["AuthToken"],
 						ServiceSid = twilioConfig["ServiceSid"],
-						RegisteredSenderPhoneNumber = new PhoneNumber(twilioConfig["RegisteredSenderPhoneNumber"]),
+						RegisteredSenderPhoneNumber = twilioConfig["RegisteredSenderPhoneNumber"],
 					}
 				};
 

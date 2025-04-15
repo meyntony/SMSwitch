@@ -80,6 +80,11 @@ namespace SMSwitch.Services.Plivo
 
 		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
 		{
+			if (string.IsNullOrWhiteSpace(_plivoInitializer.PlivoSettings.PlivoPrivateSettings.SourceNumber))
+			{
+				_logger.LogCritical("SourceNumber missing!!");
+				return false;
+			}
 			try
 			{
 				// Send SMS using Plivo API

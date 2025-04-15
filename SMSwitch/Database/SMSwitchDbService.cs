@@ -79,7 +79,7 @@ namespace SMSwitch.Database
 				return latestSession;
 			}
 
-			// what if seesion exists but is expired
+			await _smSwitchSendSmsSessionCollection.UpdateOneAsync(FilterSendSMSSession(sessionId), Builders<SMSwitchSendSMSSession>.Update.Set(ar => ar.SessionId, $"{Guid.NewGuid()}_{sessionId}"));
 
 			latestSession = new SMSwitchSendSMSSession()
 			{

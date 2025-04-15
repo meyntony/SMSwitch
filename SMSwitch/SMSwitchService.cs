@@ -1,5 +1,4 @@
-﻿using Common.Utilities;
-using HumanLanguages;
+﻿using HumanLanguages;
 using Microsoft.Extensions.Logging;
 using SMSwitch.Common;
 using SMSwitch.Common.DTOs;
@@ -202,14 +201,19 @@ namespace SMSwitch
 					session?.SentAttempts?.Add(new AttemptDetailsSendSMS(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), isSent));
 					if (isSent)
 					{
+						session.SuccessfullySentTimestampUTC = DateTimeOffset.UtcNow;
 						break;
+					}
+					else
+					{
+						session.FailedAttemptsDateTimeOffset.Add(DateTimeOffset.UtcNow);
 					}
 				}
 
 				session.SmsProvidersQueue = smsProvidersQueue;
 				await _smSwitchDbService.UpdateSendSMSSession(session);
 
-				if (isSent)
+				if (!isSent)
 				{
 					_logger.LogCritical("Unable to send SMS to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
 				}
