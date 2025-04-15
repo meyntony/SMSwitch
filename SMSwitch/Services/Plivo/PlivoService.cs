@@ -78,9 +78,35 @@ namespace SMSwitch.Services.Plivo
 			}
 		}
 
-		public Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage)
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
 		{
-			throw new NotImplementedException();
+			try
+			{
+				// Send SMS using Plivo API
+				var response = await _plivoInitializer.PlivoApi.Message.CreateAsync(
+					src: _plivoInitializer.PlivoSettings.PlivoPrivateSettings.SourceNumber, // Replace with your Plivo source number
+					dst: mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber,
+					text: shortMessageServiceMessage
+				);
+
+				// Check if the message was successfully sent
+				if (response != null && response.MessageUuid.Any())
+				{
+					_logger.LogInformation("SMS sent successfully to {ToNumber} with Message UUID: {MessageUuid}",
+						mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber, response.MessageUuid.First());
+					return true;
+				}
+
+				_logger.LogWarning("Failed to send SMS to {ToNumber}. Response: {Response}",
+					mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber, response);
+				return false;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error occurred while sending SMS to {PhoneNumber}",
+					mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
+				return false;
+			}
 		}
 
 		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)

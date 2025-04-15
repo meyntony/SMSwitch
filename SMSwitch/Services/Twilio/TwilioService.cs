@@ -110,7 +110,7 @@ namespace SMSwitch.Services.Twilio
             }
         }
 
-        public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage)
+        public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
         {
 			try
 			{

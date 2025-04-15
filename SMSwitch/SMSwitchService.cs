@@ -1,4 +1,5 @@
-﻿using HumanLanguages;
+﻿using Common.Utilities;
+using HumanLanguages;
 using Microsoft.Extensions.Logging;
 using SMSwitch.Common;
 using SMSwitch.Common.DTOs;
@@ -137,9 +138,89 @@ namespace SMSwitch
 			return responseSendOTP ?? new SMSwitchResponseSendOTP() { IsSent = false }; 
 		}
 
-		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage)
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
 		{
-			throw new NotImplementedException();
+			try
+			{
+				var session = await _smSwitchDbService.GetOrCreateAndGetLatestSendSMSSession(mobileWithCountryCode, shortMessageServiceMessage);
+
+				if (session.SentAttempts?.Any() ?? false)
+				{
+					var latestSentAttempt = session.SentAttempts.Last();
+					if ((latestSentAttempt?.IsSent ?? false) && latestSentAttempt.AttemptTimeInUTC.AddSeconds(resendCooldownPeriodInSeconds) > DateTimeOffset.UtcNow)
+					{
+						_logger.LogInformation("Message already sent to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
+						return latestSentAttempt.IsSent;
+					}
+				}
+
+				Queue<SmsProvider> smsProvidersQueue = null;
+				if (session.SmsProvidersQueue?.Any() ?? false)
+				{
+					smsProvidersQueue = session.SmsProvidersQueue;
+				}
+				else
+				{
+					smsProvidersQueue = new();
+					HashSet<SmsProvider> smsProviders = null;
+					if (!_smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out smsProviders))
+					{
+						smsProviders = _smSwitchInitializer.SmsControls.FallBackPriority;
+					}
+					for (int i = 0; i < _smSwitchInitializer.SmsControls.MaxRoundRobinAttempts; i++)
+					{
+						foreach (SmsProvider smsProvider in smsProviders)
+						{
+							smsProvidersQueue.Enqueue(smsProvider);
+						}
+					}
+				}
+
+				if (smsProvidersQueue.Count == 0)
+				{
+					return false;
+				}
+
+				bool isSent = false;
+				while (smsProvidersQueue.Any())
+				{
+					if (session?.SentAttempts?.Any() ?? false)
+					{
+						smsProvidersQueue.Dequeue();
+						if (!smsProvidersQueue.Any())
+						{
+							break;
+						}
+					}
+					isSent = smsProvidersQueue.Peek() switch
+					{
+						SmsProvider.Twilio => await _twilioService.SendSMS(mobileWithCountryCode, shortMessageServiceMessage),
+						SmsProvider.Plivo => await _plivoService.SendSMS(mobileWithCountryCode, shortMessageServiceMessage),
+						_ => throw new NotImplementedException(),
+					};
+
+					session?.SentAttempts?.Add(new AttemptDetailsSendSMS(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), isSent));
+					if (isSent)
+					{
+						break;
+					}
+				}
+
+				session.SmsProvidersQueue = smsProvidersQueue;
+				await _smSwitchDbService.UpdateSendSMSSession(session);
+
+				if (isSent)
+				{
+					_logger.LogCritical("Unable to send SMS to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
+				}
+
+				return isSent;
+			}
+			catch (Exception exception)
+			{
+				_logger.LogCritical(exception, "Unable to send SMS to {PhoneNumber} with messgage: {shortMessageServiceMessage}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, shortMessageServiceMessage);
+				return false;
+			}
 		}
 
 		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
