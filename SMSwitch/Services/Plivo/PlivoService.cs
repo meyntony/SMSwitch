@@ -94,12 +94,11 @@ namespace SMSwitch.Services.Plivo
 					text: shortMessageServiceMessage
 				);
 
-				// Check if the message was successfully sent
+				// Check if the message was accepted by Plivo
 				if (response != null && response.MessageUuid.Any())
 				{
-					_logger.LogInformation("SMS sent successfully to {ToNumber} with Message UUID: {MessageUuid}",
-						mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber, response.MessageUuid.First());
-					return true;
+					var messageUuid = response.MessageUuid.First();
+					return await KeepCheckingIfSentEvery2seconds(messageUuid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds));
 				}
 
 				_logger.LogWarning("Failed to send SMS to {ToNumber}. Response: {Response}",
@@ -111,6 +110,27 @@ namespace SMSwitch.Services.Plivo
 				_logger.LogError(ex, "Error occurred while sending SMS to {PhoneNumber}",
 					mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
 				return false;
+			}
+		}
+
+		private async Task<bool> KeepCheckingIfSentEvery2seconds(string messageUuid, DateTimeOffset expiry)
+		{
+			// Fetch the message status
+			var messageDetails = await _plivoInitializer.PlivoApi.Message.GetAsync(messageUuid);
+
+			// Check if the message was delivered
+			if (messageDetails.MessageState == "delivered")
+			{
+				return true;
+			}
+			else if (DateTimeOffset.UtcNow > expiry)
+			{
+				return false;
+			}
+			else 
+			{
+				await Task.Delay(TimeSpan.FromSeconds(2));
+				return await KeepCheckingIfSentEvery2seconds(messageUuid, expiry);
 			}
 		}
 

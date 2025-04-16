@@ -88,7 +88,7 @@ namespace SMSwitch.Services.Twilio
 
             try
             {
-                var verification = await VerificationResource.CreateAsync(
+                var verificationMessage = await VerificationResource.CreateAsync(
                     to: $"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}",
                     channel: "sms",
                     locale: locale,
@@ -96,9 +96,12 @@ namespace SMSwitch.Services.Twilio
                     appHash: userAgent == UserAgent.Android ? _twilioInitializer.TwilioSettings.AndroidAppHash : null
 				);
 
-                return new SMSwitchResponseSendOTP() { 
-                    IsSent = !string.IsNullOrEmpty(verification?.Sid),
-                    OtpLength = _twilioInitializer.TwilioSettings.OtpLength
+
+				var isSent = await KeepCheckingIfOtpSentEvery2seconds(verificationMessage?.Sid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds));
+
+				return new SMSwitchResponseSendOTP() { 
+                    IsSent = isSent,
+                    OtpLength = isSent ? _twilioInitializer.TwilioSettings.OtpLength : (byte)0
 				};
             }
             catch (Exception exception)
@@ -110,10 +113,20 @@ namespace SMSwitch.Services.Twilio
             }
         }
 
-        public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
-        {
+		private async Task<bool> KeepCheckingIfOtpSentEvery2seconds(string? sid, DateTimeOffset expiry)
+		{
+			if (string.IsNullOrWhiteSpace(sid))
+			{
+				return false;
+			}
+			return true; // todo
+		}
+
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
+		{
 			try
 			{
+				// Send the SMS
 				var message = await MessageResource.CreateAsync(
 					to: new PhoneNumber($"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}"),
 					from: _twilioInitializer.TwilioSettings.TwilioPrivateSettings.RegisteredSenderPhoneNumber,
@@ -122,8 +135,7 @@ namespace SMSwitch.Services.Twilio
 
 				if (!string.IsNullOrEmpty(message?.Sid))
 				{
-					_logger.LogInformation("SMS sent successfully to +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
-					return true;
+					return await KeepCheckingIfSentEvery2seconds(message.Sid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds));
 				}
 				else
 				{
@@ -138,7 +150,28 @@ namespace SMSwitch.Services.Twilio
 			}
 		}
 
-        public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
+		private async Task<bool> KeepCheckingIfSentEvery2seconds(string messageSid, DateTimeOffset expiry)
+		{
+			// Fetch the message status
+			var fetchedMessage = await MessageResource.FetchAsync(messageSid);
+
+			// Check if the message was delivered
+			if (fetchedMessage.Status == MessageResource.StatusEnum.Delivered)
+			{
+				return true;
+			}
+			else if (DateTimeOffset.UtcNow > expiry)
+			{
+				return false;
+			}
+			else
+			{
+				await Task.Delay(TimeSpan.FromSeconds(2));
+				return await KeepCheckingIfSentEvery2seconds(messageSid, expiry);
+			}
+		}
+
+		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
         {
             bool verified = false;
             try
