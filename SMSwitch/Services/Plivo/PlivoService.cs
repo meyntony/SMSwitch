@@ -60,7 +60,7 @@ namespace SMSwitch.Services.Plivo
 				bool isSent = false;
 				if (verifySessionResponse.StatusCode.ToString().StartsWith("2"))
 				{
-					isSent = await _plivoDbService.KeepCheckingTheDatabaseIfSentEvery2seconds(verifySessionResponse.SessionUUID, expiry: DateTimeOffset.UtcNow.AddSeconds(60));
+					isSent = await _plivoDbService.KeepCheckingTheDatabaseIfSentEvery2seconds(verifySessionResponse.SessionUUID, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds));
 				}
 				return new SMSwitchResponseSendOTP()
 				{

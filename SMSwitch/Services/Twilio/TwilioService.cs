@@ -97,7 +97,7 @@ namespace SMSwitch.Services.Twilio
 				);
 
 
-				var isSent = await KeepCheckingIfOtpSentEvery2seconds(verificationMessage?.Sid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds));
+				var isSent = !string.IsNullOrWhiteSpace(verificationMessage?.Sid);
 
 				return new SMSwitchResponseSendOTP() { 
                     IsSent = isSent,
@@ -113,14 +113,7 @@ namespace SMSwitch.Services.Twilio
             }
         }
 
-		private async Task<bool> KeepCheckingIfOtpSentEvery2seconds(string? sid, DateTimeOffset expiry)
-		{
-			if (string.IsNullOrWhiteSpace(sid))
-			{
-				return false;
-			}
-			return true; // todo
-		}
+	
 
 		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
 		{
