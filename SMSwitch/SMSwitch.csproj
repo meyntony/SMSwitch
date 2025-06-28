@@ -9,18 +9,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EarthCountriesInfo" Version="3.1.0" />
-    <PackageReference Include="HumanLanguages" Version="10.0.0" />
-    <PackageReference Include="Meyn.Utilities" Version="6.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.2" />
-	<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
-	<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.11" />
-    <PackageReference Include="MongoDbService" Version="5.0.0" />
-    <PackageReference Include="Plivo" Version="5.49.5" />
-    <PackageReference Include="Twilio" Version="7.10.0" />
+    <PackageReference Include="EarthCountriesInfo" Version="4.0.0" />
+    <PackageReference Include="HumanLanguages" Version="10.1.0" />
+    <PackageReference Include="Meyn.Utilities" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.6" />
+	<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.6" />
+	<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.17" />
+    <PackageReference Include="MongoDbService" Version="5.1.0" />
+    <PackageReference Include="Plivo" Version="5.51.0" />
+    <PackageReference Include="Twilio" Version="7.11.3" />
     <PackageReference Include="uSignIn.CommonSettings" Version="5.0.0" />
   </ItemGroup>
 	<ItemGroup>
