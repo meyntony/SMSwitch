@@ -3,25 +3,25 @@
   <PropertyGroup>
 	  <PackageLicenseFile>LICENSE</PackageLicenseFile>
 	  <PackageReadmeFile>README.md</PackageReadmeFile>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EarthCountriesInfo" Version="4.0.0" />
-    <PackageReference Include="HumanLanguages" Version="10.1.0" />
-    <PackageReference Include="Meyn.Utilities" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.6" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.6" />
-	<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.6" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.6" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.6" />
-	<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.17" />
-    <PackageReference Include="MongoDbService" Version="5.1.0" />
-    <PackageReference Include="Plivo" Version="5.51.0" />
-    <PackageReference Include="Twilio" Version="7.11.3" />
-    <PackageReference Include="uSignIn.CommonSettings" Version="5.0.0" />
+    <PackageReference Include="EarthCountriesInfo" Version="10.0.0" />
+    <PackageReference Include="HumanLanguages" Version="10.2.0" />
+    <PackageReference Include="Meyn.Utilities" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+	<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+	<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <PackageReference Include="MongoDbService" Version="10.0.0" />
+    <PackageReference Include="Plivo" Version="5.51.3" />
+    <PackageReference Include="Twilio" Version="7.13.7" />
+    <PackageReference Include="uSignIn.CommonSettings" Version="10.0.1" />
   </ItemGroup>
 	<ItemGroup>
 		<None Include="../LICENSE" Pack="true" PackagePath="\" />
