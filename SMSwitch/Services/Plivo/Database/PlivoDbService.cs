@@ -51,11 +51,11 @@ namespace SMSwitch.Services.Plivo.Database
 			return Builders<PlivoSession>.Filter.Eq(t => t.CountryPhoneCodeAndPhoneNumber, idAsString);
 		}
 
-		internal async Task<string> GetLatestSessionUUID(MobileNumber mobileWithCountryCode)
+		internal async Task<string?> GetLatestSessionUUID(MobileNumber mobileWithCountryCode)
 		{
 			var filter = getFilter(mobileWithCountryCode);
 			var sessionInDb = await _plivoSessionCollection.Find(filter).FirstOrDefaultAsync();
-			return sessionInDb.SessionUUID;
+			return sessionInDb?.SessionUUID;
 		}
 
 		internal async Task ClearSessionUUID(MobileNumber mobileWithCountryCode)

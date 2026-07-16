@@ -12,7 +12,6 @@ namespace SMSwitch.Services.Plivo
 		public required string AuthToken { get; init; }
 		public required string AppUuid { get; init; }
 		public string? SourceNumber { get; set; }
-
-
+		public string? WebhookSecret { get; set; }
 	}
 }

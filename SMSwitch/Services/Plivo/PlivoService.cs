@@ -20,7 +20,7 @@ namespace SMSwitch.Services.Plivo
 		}
 
 		/// <summary>
-		/// Plivo support said we need to contact them to add more translations of their SMS temeplate in different languages
+		/// Plivo support said we need to contact them to add more translations of their SMS template in different languages
 		/// I contacted them and added da for Danish
 		/// </summary>
 		private static HashSet<string> _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate =>
@@ -139,6 +139,14 @@ namespace SMSwitch.Services.Plivo
 			try
 			{
 				var sessionUuid = await _plivoDbService.GetLatestSessionUUID(mobileWithCountryCode);
+				if (string.IsNullOrWhiteSpace(sessionUuid))
+				{
+					_logger.LogInformation("No Plivo session found for +{MobileNumber}, unable to verify OTP", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
+					return new SMSwitchResponseVerifyOTP()
+					{
+						Verified = false
+					};
+				}
 				var response = _plivoInitializer.PlivoApi.VerifySession.Validate(session_uuid: sessionUuid, otp: OTP);
 				if (_plivoInitializer.PlivoApi.VerifySession.Get(sessionUuid).Status.ToLower() == "verified")
 				{

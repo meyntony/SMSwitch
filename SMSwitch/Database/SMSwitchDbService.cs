@@ -59,15 +59,15 @@ namespace SMSwitch.Database
 
 		internal async Task<SMSwitchSession?> GetLatestSession(MobileNumber mobileWithCountryCode)
 		{
-			var allRecords = _smSwitchSessionCollection.Find(Filter(mobileWithCountryCode));
+			var filter = Filter(mobileWithCountryCode)
+				& Builders<SMSwitchSession>.Filter.Gt(t => t.ExpiryTimeUTC, DateTimeOffset.UtcNow)
+				& Builders<SMSwitchSession>.Filter.Eq(t => t.SuccessfullyVerifiedTimestampUTC, null);
 
-			if (allRecords?.Any() ?? false)
-			{
-				return await Task.FromResult(allRecords.ToList().Where(r => r.HasNotExpired(_smSwitchInitializer.SmsControls.MaximumFailedAttemptsToVerify))?
-				.OrderByDescending(record => record.ExpiryTimeUTC)?
-				.FirstOrDefault());
-			}
-			return null;
+			var candidateRecords = await _smSwitchSessionCollection.Find(filter)
+				.SortByDescending(record => record.ExpiryTimeUTC)
+				.ToListAsync();
+
+			return candidateRecords.FirstOrDefault(r => r.HasNotExpired(_smSwitchInitializer.SmsControls.MaximumFailedAttemptsToVerify));
 		}
 
 		internal async Task<SMSwitchSendSMSSession> GetOrCreateAndGetLatestSendSMSSession(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage)
@@ -97,15 +97,15 @@ namespace SMSwitch.Database
 
 		private async Task<SMSwitchSendSMSSession?> GetLatestSendSMSSession(string sessionId)
 		{
-			var allRecords = _smSwitchSendSmsSessionCollection.Find(FilterSendSMSSession(sessionId));
+			var filter = FilterSendSMSSession(sessionId)
+				& Builders<SMSwitchSendSMSSession>.Filter.Gt(t => t.ExpiryTimeUTC, DateTimeOffset.UtcNow)
+				& Builders<SMSwitchSendSMSSession>.Filter.Eq(t => t.SuccessfullySentTimestampUTC, null);
 
-			if (allRecords?.Any() ?? false)
-			{
-				return await Task.FromResult(allRecords.ToList().Where(r => r.HasNotExpired(_smSwitchInitializer.SmsControls.MaximumFailedAttemptsToVerify))?
-				.OrderByDescending(record => record.ExpiryTimeUTC)?
-				.FirstOrDefault());
-			}
-			return null;
+			var candidateRecords = await _smSwitchSendSmsSessionCollection.Find(filter)
+				.SortByDescending(record => record.ExpiryTimeUTC)
+				.ToListAsync();
+
+			return candidateRecords.FirstOrDefault(r => r.HasNotExpired(_smSwitchInitializer.SmsControls.MaximumFailedAttemptsToVerify));
 		}
 
 		internal async Task UpdateSendSMSSession(SMSwitchSendSMSSession session)

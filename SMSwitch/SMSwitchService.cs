@@ -5,6 +5,7 @@ using SMSwitch.Common.DTOs;
 using SMSwitch.Countries.Database;
 using SMSwitch.Database;
 using SMSwitch.Database.DTOs;
+using SMSwitch.Services.DevConsole;
 using SMSwitch.Services.Plivo;
 using SMSwitch.Services.Twilio;
 
@@ -17,6 +18,7 @@ namespace SMSwitch
 
 		private readonly TwilioService _twilioService;
 		private readonly PlivoService _plivoService;
+		private readonly DevConsoleService _devConsoleService;
 
 		private readonly SMSwitchDbService _smSwitchDbService;
 		private readonly CountryDbService _countryDbService;
@@ -27,6 +29,7 @@ namespace SMSwitch
 			SMSwitchInitializer smSwitchInitializer,
 			TwilioService twilioService,
 			PlivoService plivoService,
+			DevConsoleService devConsoleService,
 			SMSwitchDbService smSwitchDbService,
 			CountryDbService countryDbService,
 			ILogger<SMSwitchService> logger
@@ -35,6 +38,7 @@ namespace SMSwitch
 			_smSwitchInitializer = smSwitchInitializer;
 			_twilioService = twilioService;
 			_plivoService = plivoService;
+			_devConsoleService = devConsoleService;
 			_smSwitchDbService = smSwitchDbService;
 			_countryDbService = countryDbService;
 			_logger = logger;
@@ -50,7 +54,7 @@ namespace SMSwitch
 
 				if (session is null)
 				{
-					_logger.LogError("Unable to send OTP to {PhoneNumber} becuase no session was created!!", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
+					_logger.LogError("Unable to send OTP to {PhoneNumber} because no session was created!!", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
 					return new SMSwitchResponseSendOTP()
 					{
 						IsSent = false
@@ -111,6 +115,7 @@ namespace SMSwitch
 					{
 						SmsProvider.Twilio => await _twilioService.SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent),
 						SmsProvider.Plivo => await _plivoService.SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent),
+						SmsProvider.DevConsole => await _devConsoleService.SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent),
 						_ => throw new NotImplementedException(),
 					};
 
@@ -195,6 +200,7 @@ namespace SMSwitch
 					{
 						SmsProvider.Twilio => await _twilioService.SendSMS(mobileWithCountryCode, shortMessageServiceMessage),
 						SmsProvider.Plivo => await _plivoService.SendSMS(mobileWithCountryCode, shortMessageServiceMessage),
+						SmsProvider.DevConsole => await _devConsoleService.SendSMS(mobileWithCountryCode, shortMessageServiceMessage),
 						_ => throw new NotImplementedException(),
 					};
 
@@ -222,7 +228,7 @@ namespace SMSwitch
 			}
 			catch (Exception exception)
 			{
-				_logger.LogCritical(exception, "Unable to send SMS to {PhoneNumber} with messgage: {shortMessageServiceMessage}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, shortMessageServiceMessage);
+				_logger.LogCritical(exception, "Unable to send SMS to {PhoneNumber} with message: {shortMessageServiceMessage}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, shortMessageServiceMessage);
 				return false;
 			}
 		}
@@ -237,6 +243,7 @@ namespace SMSwitch
 				{
 					SmsProvider.Twilio => await _twilioService.VerifyOTP(mobileWithCountryCode, OTP),
 					SmsProvider.Plivo => await _plivoService.VerifyOTP(mobileWithCountryCode, OTP),
+					SmsProvider.DevConsole => await _devConsoleService.VerifyOTP(mobileWithCountryCode, OTP),
 					_ => throw new NotImplementedException(),
 				};
 
@@ -263,7 +270,7 @@ namespace SMSwitch
 			}
 			else 
 			{
-				_logger.LogInformation("Session not found: Unable to verify OTP for {PhoneNumber} with OTP: {OTP}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, OTP);
+				_logger.LogInformation("Session not found: Unable to verify OTP for {PhoneNumber}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
 			}
 			return new SMSwitchResponseVerifyOTP() {
 				Verified = false,

@@ -19,6 +19,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
 	<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="MongoDbService" Version="10.0.0" />
+    <PackageReference Include="MongoDbTokenManager" Version="10.1.0" />
     <PackageReference Include="Plivo" Version="5.51.3" />
     <PackageReference Include="Twilio" Version="7.13.7" />
     <PackageReference Include="uSignIn.CommonSettings" Version="10.0.1" />
