@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using MongoDbTokenManager;
 using SMSwitch.Common;
 using SMSwitch.Countries;
 using SMSwitch.Countries.Database;
 using SMSwitch.Database;
+using SMSwitch.Services.DevConsole;
 using SMSwitch.Services.Plivo;
 using SMSwitch.Services.Plivo.Database;
 using SMSwitch.Services.Twilio;
@@ -28,6 +30,10 @@ namespace SMSwitch
 			services.AddSingleton<PlivoInitializer>();
 			services.AddSingleton<PlivoDbService>();
 			services.AddScoped<PlivoService>();
+
+			services.AddMongoDbTokenServices();
+			services.AddSingleton<DevConsoleInitializer>();
+			services.AddScoped<DevConsoleService>();
 
 			services.AddScoped<SMSwitchService>();
 		}

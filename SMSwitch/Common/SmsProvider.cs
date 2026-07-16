@@ -3,7 +3,8 @@
 	public enum SmsProvider
 	{
 		Twilio,
-		Plivo
+		Plivo,
+		DevConsole
 	}
 
 }

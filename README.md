@@ -6,6 +6,7 @@ In order to know the Base Url and other common settings the following package is
 ## Features
 
 - Covers Twilio, Plivo (possible to cover more if needed)
+- A `DevConsole` provider for local testing that prints the OTP to the console instead of sending a real SMS
 - Usage information is stored in your own MongoDB instance for audit reasons
 
 
@@ -110,6 +111,25 @@ public sealed class SignInFlow
 	}
 }
 ```
+
+## Local testing without real SMS
+
+For local development you can route messages to the `DevConsole` provider instead of Twilio or Plivo, so no credits are spent and no credentials are needed. The OTP (or SMS text) is printed to the console via the logger, and OTPs are generated and verified through [MongoDbTokenManager](https://www.nuget.org/packages/MongoDbTokenManager) in your own MongoDB instance — the full `SendOTP` → `VerifyOTP` flow works end to end.
+
+Put this in your `appsettings.Development.json`:
+
+```json
+  "SMSwitchSettings": {
+    "Controls": {
+      "PriorityBasedOnCountryPhoneCode": {
+        "45": [ "DevConsole" ]
+      },
+      "FallBackPriority": [ "DevConsole" ]
+    }
+  }
+```
+
+As a safety measure the `DevConsole` provider refuses to operate when the app runs in the `Production` environment: it logs a critical error and reports the send as failed, so the provider queue falls through to a real provider if one is configured.
 
 ### GitHub Repository
 Visit our GitHub repository for the latest updates, documentation, and community contributions.
