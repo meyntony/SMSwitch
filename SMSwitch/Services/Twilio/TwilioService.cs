@@ -73,6 +73,9 @@ namespace SMSwitch.Services.Twilio
 
 		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60)
         {
+			if (_twilioInitializer.TwilioSettings is null)
+				return new SMSwitchResponseSendOTP() { IsSent = false };
+
             var locale = preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Contains(l))?.ToIsoCodeString()
 				??
 				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).Contains(l.LanguageId))?.ToIsoCodeString()
@@ -117,6 +120,9 @@ namespace SMSwitch.Services.Twilio
 
 		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
 		{
+			if (_twilioInitializer.TwilioSettings is null)
+				return false;
+
 			try
 			{
 				// Send the SMS
@@ -166,6 +172,9 @@ namespace SMSwitch.Services.Twilio
 
 		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
         {
+			if (_twilioInitializer.TwilioSettings is null)
+				return new SMSwitchResponseVerifyOTP() { Verified = false };
+
             bool verified = false;
             try
             {

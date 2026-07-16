@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 using MongoDB.Driver;
 using MongoDbService;
 using SMSwitch.Common.DTOs;
@@ -9,8 +10,8 @@ namespace SMSwitch.Services.Plivo.Database
 	public sealed class PlivoDbService
 	{
 		private IMongoCollection<PlivoSession> _plivoSessionCollection;
-		private IHostingEnvironment _hostingEnvironment;
-		public PlivoDbService(MongoService mongoService, IHostingEnvironment hostingEnvironment)
+		private IWebHostEnvironment _hostingEnvironment;
+		public PlivoDbService(MongoService mongoService, IWebHostEnvironment hostingEnvironment)
 		{
 			_plivoSessionCollection = mongoService.Database.GetCollection<PlivoSession>(nameof(PlivoSession), new MongoCollectionSettings() { ReadConcern = ReadConcern.Majority, WriteConcern = WriteConcern.WMajority });
 			_hostingEnvironment = hostingEnvironment;

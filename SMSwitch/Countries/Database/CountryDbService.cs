@@ -38,28 +38,28 @@ namespace SMSwitch.Countries.Database
                 foreach (var countryInfoFromDb in allCountriesFromDb)
                 {
                     var localVersion = _dataSource.FirstOrDefault(c => c.CountryCode == countryInfoFromDb.CountryCode);
-                    if (NeedsAnUpdateInDb(countryInfoFromDb, localVersion, out CountryInfo latestVersion))
+                    if (NeedsAnUpdateInDb(countryInfoFromDb, localVersion, out CountryInfo? latestVersion))
                     {
                         var options = new ReplaceOptions { IsUpsert = true };
                         var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, countryInfoFromDb.CountryCode);
-                        await _countryPhoneCodeCollection.ReplaceOneAsync(filter, latestVersion, options);
+                        await _countryPhoneCodeCollection.ReplaceOneAsync(filter, latestVersion!, options);
                     }
                 }
 
                 var allCountriesFromLocalNotInDB = _dataSource.Where(c => !allCountriesFromDb.Any(cdb => cdb.CountryCode == c.CountryCode));
                 foreach (var countryFromLocalNotInDB in allCountriesFromLocalNotInDB)
                 {
-                    if (NeedsAnUpdateInDb(null, countryFromLocalNotInDB, out CountryInfo latestVersion))
+                    if (NeedsAnUpdateInDb(null, countryFromLocalNotInDB, out CountryInfo? latestVersion))
                     {
                         var options = new ReplaceOptions { IsUpsert = true };
-                        var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, latestVersion.CountryCode);
-                        await _countryPhoneCodeCollection.ReplaceOneAsync(filter, latestVersion, options);
+                        var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, latestVersion!.CountryCode);
+                        await _countryPhoneCodeCollection.ReplaceOneAsync(filter, latestVersion!, options);
                     }
                 }
             }
         }
 
-        private static bool NeedsAnUpdateInDb(CountryInfo? countryInfoFromDb, CountryInfo? localVersion, out CountryInfo mergedVersion)
+        private static bool NeedsAnUpdateInDb(CountryInfo? countryInfoFromDb, CountryInfo? localVersion, out CountryInfo? mergedVersion)
         {
             // If localVersion is null, no update is needed
             if (localVersion == null)
@@ -68,15 +68,14 @@ namespace SMSwitch.Countries.Database
                 return false;
             }
 
-
-            // Start with the database version
-            mergedVersion = countryInfoFromDb;
-
             if (countryInfoFromDb == null)
             {
                 mergedVersion = localVersion;
                 return true;
             }
+
+            // Both non-null: start with the database version
+            mergedVersion = countryInfoFromDb;
 
             // Check each property for differences
             bool updateNeeded = false;
@@ -97,6 +96,7 @@ namespace SMSwitch.Countries.Database
             // For the dictionaries, we'll merge them
             if (localVersion.CountryNames != null)
             {
+                mergedVersion.CountryNames ??= [];
                 foreach (var pair in localVersion.CountryNames)
                 {
                     if (!mergedVersion.CountryNames.ContainsKey(pair.Key) || mergedVersion.CountryNames[pair.Key] != pair.Value)
@@ -109,6 +109,7 @@ namespace SMSwitch.Countries.Database
 
             if (localVersion.ValidLengthsAndFormat != null)
             {
+                mergedVersion.ValidLengthsAndFormat ??= [];
                 foreach (var pair in localVersion.ValidLengthsAndFormat)
                 {
                     if (!mergedVersion.ValidLengthsAndFormat.ContainsKey(pair.Key) || mergedVersion.ValidLengthsAndFormat[pair.Key] != pair.Value)

@@ -31,8 +31,11 @@ namespace SMSwitch.Services.Plivo
 
 		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60)
 		{
+			if (_plivoInitializer.PlivoApi is null || _plivoInitializer.PlivoSettings is null)
+				return new SMSwitchResponseSendOTP() { IsSent = false };
+
 			string preferredLocale = "en";
-			try 
+			try
 			{
 				preferredLocale = preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Contains(l))?.ToIsoCodeString()
 				??
@@ -80,6 +83,9 @@ namespace SMSwitch.Services.Plivo
 
 		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
 		{
+			if (_plivoInitializer.PlivoApi is null || _plivoInitializer.PlivoSettings is null)
+				return false;
+
 			if (string.IsNullOrWhiteSpace(_plivoInitializer.PlivoSettings.PlivoPrivateSettings.SourceNumber))
 			{
 				_logger.LogCritical("SourceNumber missing!!");
@@ -116,7 +122,7 @@ namespace SMSwitch.Services.Plivo
 		private async Task<bool> KeepCheckingIfSentEvery2seconds(string messageUuid, DateTimeOffset expiry)
 		{
 			// Fetch the message status
-			var messageDetails = await _plivoInitializer.PlivoApi.Message.GetAsync(messageUuid);
+			var messageDetails = await _plivoInitializer.PlivoApi!.Message.GetAsync(messageUuid);
 
 			// Check if the message was delivered
 			if (messageDetails.MessageState == "delivered")
@@ -136,6 +142,9 @@ namespace SMSwitch.Services.Plivo
 
 		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
 		{
+			if (_plivoInitializer.PlivoApi is null || _plivoInitializer.PlivoSettings is null)
+				return new SMSwitchResponseVerifyOTP() { Verified = false };
+
 			try
 			{
 				var sessionUuid = await _plivoDbService.GetLatestSessionUUID(mobileWithCountryCode);
