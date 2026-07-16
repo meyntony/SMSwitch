@@ -48,20 +48,67 @@ Then in your `appsettings.json` add the following sample configuration and chang
     "Plivo": {
       "AuthId": "MovedToSecret",
       "AuthToken": "MovedToSecret",
-      "AppUuid": "MovedToSecret"
+      "AppUuid": "MovedToSecret",
+      "WebhookSecret": "MovedToSecret"
     }
   }
   ```
+`Plivo:WebhookSecret` is optional but recommended: when set, it is appended to the delivery-notification callback URL that SMSwitch registers with Plivo, and incoming webhook calls without the matching secret are rejected with `401 Unauthorized`.
 
-After the above is done, you can just Dependency inject the `SMSwitch` in your C# class.
-
-#### For example:
-
-
+After the above is done, register the services and (if you use Plivo) the webhook endpoint in your `Program.cs`:
 
 ```csharp
-TODO
+using MongoDbService;
+using SMSwitch;
 
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddMongoDbServices();
+builder.Services.AddSMSwitchServices();
+
+var app = builder.Build();
+
+// Maps the Plivo delivery-notification webhook under /smswitch
+app.AddSMSwitchApiEndpoints();
+
+app.Run();
+```
+
+Then dependency-inject `SMSwitchService` wherever you need it:
+
+```csharp
+using HumanLanguages;
+using SMSwitch;
+using SMSwitch.Common.DTOs;
+
+public sealed class SignInFlow
+{
+	private readonly SMSwitchService _smSwitch;
+
+	public SignInFlow(SMSwitchService smSwitch) => _smSwitch = smSwitch;
+
+	public async Task<bool> Demo()
+	{
+		var mobileNumber = new MobileNumber
+		{
+			CountryIsoCodeString = "DK",
+			CountryPhoneCode = "45",
+			PhoneNumber = "12345678"
+		};
+		var preferredLanguages = new HashSet<LanguageIsoCode> { HumanHelper.CreateLanguageIsoCode("en") };
+
+		// Send a one-time password (provider is picked from your configured priorities)
+		var sendResponse = await _smSwitch.SendOTP(mobileNumber, preferredLanguages, UserAgent.WebBrowser);
+
+		// Later, verify the OTP the user typed in
+		var verifyResponse = await _smSwitch.VerifyOTP(mobileNumber, "123456");
+
+		// Or send a plain SMS
+		var smsSent = await _smSwitch.SendSMS(mobileNumber, "Hello from SMSwitch!");
+
+		return verifyResponse.Verified;
+	}
+}
 ```
 
 ### GitHub Repository

@@ -20,7 +20,7 @@ namespace SMSwitch.Countries.Database
         {
             _logger = logger;
             _countryPhoneCodeCollection = mongoService.Database.GetCollection<CountryInfo>(nameof(CountryInfo), new MongoCollectionSettings() { ReadConcern = ReadConcern.Majority, WriteConcern = WriteConcern.WMajority });
-            _countryInitializer = countryInitializer; ;
+            _countryInitializer = countryInitializer;
         }
 
         private async Task LoadCollectionFromCodeBase()
@@ -146,7 +146,7 @@ namespace SMSwitch.Countries.Database
                 return allCountries.ToList();
             }
             await LoadCollectionFromCodeBase();
-            return await GetAllCountriesFromDb();
+            return await _countryPhoneCodeCollection.Find(e => true).ToListAsync();
         }
 
         public async Task FeedbackAsync(string countryPhoneCode, byte phoneNumberLength, CountryIsoCode? countryIsoCode)
@@ -155,11 +155,16 @@ namespace SMSwitch.Countries.Database
             {
                 var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, countryIsoCode.ToString());
                 var countryToUpdate = await _countryPhoneCodeCollection.Find(filter).FirstOrDefaultAsync();
+                if (countryToUpdate == null)
+                {
+                    _logger.LogInformation("No CountryInfo found for {CountryIsoCode}, skipping feedback", countryIsoCode);
+                    return;
+                }
                 if (countryToUpdate.ValidLengthsAndFormat == null)
                 {
                     countryToUpdate.ValidLengthsAndFormat = [];
                 }
-                if (countryToUpdate != null && countryToUpdate.CountryPhoneCode == countryPhoneCode && !countryToUpdate.ValidLengthsAndFormat.TryGetValue(phoneNumberLength.ToString(), out string? _))
+                if (countryToUpdate.CountryPhoneCode == countryPhoneCode && !countryToUpdate.ValidLengthsAndFormat.TryGetValue(phoneNumberLength.ToString(), out string? _))
                 {
                     countryToUpdate.ValidLengthsAndFormat.Add(phoneNumberLength.ToString(), ConvertByteToHashString(phoneNumberLength));
                     var options = new ReplaceOptions { IsUpsert = true };

@@ -10,7 +10,7 @@ using uSignIn.CommonSettings.Settings;
 
 namespace SMSwitch
 {
-	public static class SeviceCollectionExtensions
+	public static class ServiceCollectionExtensions
 	{
 		public static void AddSMSwitchServices(this IServiceCollection services)
 		{

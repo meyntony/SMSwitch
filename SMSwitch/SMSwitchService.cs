@@ -50,7 +50,7 @@ namespace SMSwitch
 
 				if (session is null)
 				{
-					_logger.LogError("Unable to send OTP to {PhoneNumber} becuase no session was created!!", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
+					_logger.LogError("Unable to send OTP to {PhoneNumber} because no session was created!!", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
 					return new SMSwitchResponseSendOTP()
 					{
 						IsSent = false
@@ -222,7 +222,7 @@ namespace SMSwitch
 			}
 			catch (Exception exception)
 			{
-				_logger.LogCritical(exception, "Unable to send SMS to {PhoneNumber} with messgage: {shortMessageServiceMessage}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, shortMessageServiceMessage);
+				_logger.LogCritical(exception, "Unable to send SMS to {PhoneNumber} with message: {shortMessageServiceMessage}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, shortMessageServiceMessage);
 				return false;
 			}
 		}
@@ -263,7 +263,7 @@ namespace SMSwitch
 			}
 			else 
 			{
-				_logger.LogInformation("Session not found: Unable to verify OTP for {PhoneNumber} with OTP: {OTP}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, OTP);
+				_logger.LogInformation("Session not found: Unable to verify OTP for {PhoneNumber}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
 			}
 			return new SMSwitchResponseVerifyOTP() {
 				Verified = false,

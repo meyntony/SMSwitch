@@ -33,7 +33,8 @@ namespace SMSwitch.Services.Plivo
 						AuthId = plivoConfig["AuthId"],
 						AuthToken = plivoConfig["AuthToken"],
 						AppUuid = plivoConfig["AppUuid"],
-						SourceNumber = plivoConfig["SourceNumber"]
+						SourceNumber = plivoConfig["SourceNumber"],
+						WebhookSecret = plivoConfig["WebhookSecret"]
 					}
 				};
 
@@ -51,6 +52,14 @@ namespace SMSwitch.Services.Plivo
 			
 		}
 
-		internal string NotificationUrl => new Uri(_settingsService.BaseUri, $"{ConstantStrings.SMSwitchGroupName}{PlivoNotificationEndpoint.PlivoNotificationRoute}").ToString();
+		internal string NotificationUrl
+		{
+			get
+			{
+				var url = new Uri(_settingsService.BaseUri, $"{ConstantStrings.SMSwitchGroupName}{PlivoNotificationEndpoint.PlivoNotificationRoute}").ToString();
+				var webhookSecret = PlivoSettings.PlivoPrivateSettings.WebhookSecret;
+				return string.IsNullOrWhiteSpace(webhookSecret) ? url : $"{url}?secret={Uri.EscapeDataString(webhookSecret)}";
+			}
+		}
 	}
 }
