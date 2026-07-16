@@ -5,7 +5,7 @@
 		public byte MaximumFailedAttemptsToVerify { get; init; }
 		public int SessionTimeoutInSeconds { get; init; }
 		public byte MaxRoundRobinAttempts { get; set; }
-		public Dictionary<string, HashSet<SmsProvider>> PriorityBasedOnCountryPhoneCode { get; set; }
-		public HashSet<SmsProvider> FallBackPriority { get; set; }
+		public required Dictionary<string, HashSet<SmsProvider>> PriorityBasedOnCountryPhoneCode { get; set; }
+		public required HashSet<SmsProvider> FallBackPriority { get; set; }
 	}
 }

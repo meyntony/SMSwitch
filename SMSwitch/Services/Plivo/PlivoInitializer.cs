@@ -9,8 +9,8 @@ namespace SMSwitch.Services.Plivo
 {
 	public sealed class PlivoInitializer : SMSwitchGeneralInitializer
 	{
-		internal readonly PlivoSettings PlivoSettings;
-		internal readonly PlivoApi PlivoApi;
+		internal readonly PlivoSettings? PlivoSettings;
+		internal readonly PlivoApi? PlivoApi;
 		private readonly SettingsService _settingsService;
 
 		public PlivoInitializer(
@@ -30,9 +30,9 @@ namespace SMSwitch.Services.Plivo
 					OtpLength = 6, // SMSwitchGeneralSettings.OtpLength , can only be changed via the Plivo backoffice
 					PlivoPrivateSettings = new PlivoPrivateSettings()
 					{
-						AuthId = plivoConfig["AuthId"],
-						AuthToken = plivoConfig["AuthToken"],
-						AppUuid = plivoConfig["AppUuid"],
+						AuthId = plivoConfig["AuthId"]!,
+						AuthToken = plivoConfig["AuthToken"]!,
+						AppUuid = plivoConfig["AppUuid"]!,
 						SourceNumber = plivoConfig["SourceNumber"],
 						WebhookSecret = plivoConfig["WebhookSecret"]
 					}
@@ -57,7 +57,7 @@ namespace SMSwitch.Services.Plivo
 			get
 			{
 				var url = new Uri(_settingsService.BaseUri, $"{ConstantStrings.SMSwitchGroupName}{PlivoNotificationEndpoint.PlivoNotificationRoute}").ToString();
-				var webhookSecret = PlivoSettings.PlivoPrivateSettings.WebhookSecret;
+				var webhookSecret = PlivoSettings?.PlivoPrivateSettings.WebhookSecret;
 				return string.IsNullOrWhiteSpace(webhookSecret) ? url : $"{url}?secret={Uri.EscapeDataString(webhookSecret)}";
 			}
 		}

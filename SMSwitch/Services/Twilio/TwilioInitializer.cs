@@ -9,7 +9,7 @@ namespace SMSwitch.Services.Twilio
 {
 	public sealed class TwilioInitializer: SMSwitchGeneralInitializer
 	{
-		internal readonly TwilioSettings TwilioSettings;
+		internal readonly TwilioSettings? TwilioSettings;
 		public TwilioInitializer(
 			IConfiguration configuration,
 			ILogger<TwilioInitializer> logger) : base(configuration)
@@ -24,10 +24,10 @@ namespace SMSwitch.Services.Twilio
 					OtpLength = SMSwitchGeneralSettings.OtpLength,
 					TwilioPrivateSettings = new TwilioPrivateSettings()
 					{
-						AccountSid = twilioConfig["AccountSid"],
-						AuthToken = twilioConfig["AuthToken"],
-						ServiceSid = twilioConfig["ServiceSid"],
-						RegisteredSenderPhoneNumber = twilioConfig["RegisteredSenderPhoneNumber"],
+						AccountSid = twilioConfig["AccountSid"]!,
+						AuthToken = twilioConfig["AuthToken"]!,
+						ServiceSid = twilioConfig["ServiceSid"]!,
+						RegisteredSenderPhoneNumber = twilioConfig["RegisteredSenderPhoneNumber"]!,
 					}
 				};
 

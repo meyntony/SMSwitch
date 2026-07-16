@@ -45,8 +45,7 @@ app.MapPost("/sendotp", async (SMSwitchService smsSwitchService,
 
 	return await smsSwitchService.SendOTP(mobileNumber, languageCodes, UserAgent.WebBrowser, resendCooldownPeriodInSeconds);
 })
-.WithName("SendOTP")
-.WithOpenApi();
+.WithName("SendOTP");
 
 app.MapPost("/verifyotp", async (SMSwitchService smsSwitchService,
 	string countryIsoCode = "DK",
@@ -63,8 +62,7 @@ app.MapPost("/verifyotp", async (SMSwitchService smsSwitchService,
 
 	return await smsSwitchService.VerifyOTP(mobileNumber, oneTimePassword);
 })
-.WithName("VerifyOTP")
-.WithOpenApi();
+.WithName("VerifyOTP");
 
 app.MapPost("/sendsms", async (SMSwitchService smsSwitchService,
 	string countryIsoCode = "DK",
@@ -82,8 +80,7 @@ app.MapPost("/sendsms", async (SMSwitchService smsSwitchService,
 
 	return await smsSwitchService.SendSMS(mobileNumber, message, resendCooldownPeriodInSeconds);
 })
-.WithName("SendSMS")
-.WithOpenApi();
+.WithName("SendSMS");
 
 app.Run();
 

@@ -46,8 +46,8 @@ namespace SMSwitch
 
 		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60)
 		{
-			SMSwitchResponseSendOTP responseSendOTP = null;
-			SMSwitchSession session = null;
+			SMSwitchResponseSendOTP? responseSendOTP = null;
+			SMSwitchSession? session = null;
 			try 
 			{
 				session = await _smSwitchDbService.GetOrCreateAndGetLatestSession(mobileWithCountryCode);
@@ -61,7 +61,7 @@ namespace SMSwitch
 					};
 				}
 
-				if (session.SentAttempts?.Any() ?? false)
+				if (session.SentAttempts.Any())
 				{
 					var latestSentAttempt = session.SentAttempts.Last();
 					if ((latestSentAttempt?.Response?.IsSent ?? false) && latestSentAttempt.AttemptTimeInUTC.AddSeconds(resendCooldownPeriodInSeconds) > DateTimeOffset.UtcNow)
@@ -71,7 +71,7 @@ namespace SMSwitch
 					}
 				}
 
-				Queue<SmsProvider> smsProvidersQueue = null;
+				Queue<SmsProvider>? smsProvidersQueue = null;
 				if (session.SmsProvidersQueue?.Any() ?? false)
 				{
 					smsProvidersQueue = session.SmsProvidersQueue;
@@ -79,7 +79,7 @@ namespace SMSwitch
 				else
 				{
 					smsProvidersQueue = new();
-					HashSet<SmsProvider> smsProviders = null;
+					HashSet<SmsProvider>? smsProviders = null;
 					if (!_smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out smsProviders))
 					{
 						smsProviders = _smSwitchInitializer.SmsControls.FallBackPriority;
@@ -103,7 +103,7 @@ namespace SMSwitch
 
 				while (smsProvidersQueue.Any())
 				{
-					if (session?.SentAttempts?.Any() ?? false)
+					if (session.SentAttempts.Any())
 					{
 						smsProvidersQueue.Dequeue();
 						if (!smsProvidersQueue.Any())
@@ -119,7 +119,7 @@ namespace SMSwitch
 						_ => throw new NotImplementedException(),
 					};
 
-					session?.SentAttempts?.Add(new AttemptDetailsSendOTP(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), responseSendOTP));
+					session.SentAttempts.Add(new AttemptDetailsSendOTP(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), responseSendOTP));
 					if (responseSendOTP.IsSent)
 					{
 						break;
@@ -148,7 +148,7 @@ namespace SMSwitch
 			{
 				var session = await _smSwitchDbService.GetOrCreateAndGetLatestSendSMSSession(mobileWithCountryCode, shortMessageServiceMessage);
 
-				if (session.SentAttempts?.Any() ?? false)
+				if (session.SentAttempts.Any())
 				{
 					var latestSentAttempt = session.SentAttempts.Last();
 					if ((latestSentAttempt?.IsSent ?? false) && latestSentAttempt.AttemptTimeInUTC.AddSeconds(resendCooldownPeriodInSeconds) > DateTimeOffset.UtcNow)
@@ -158,7 +158,7 @@ namespace SMSwitch
 					}
 				}
 
-				Queue<SmsProvider> smsProvidersQueue = null;
+				Queue<SmsProvider>? smsProvidersQueue = null;
 				if (session.SmsProvidersQueue?.Any() ?? false)
 				{
 					smsProvidersQueue = session.SmsProvidersQueue;
@@ -166,7 +166,7 @@ namespace SMSwitch
 				else
 				{
 					smsProvidersQueue = new();
-					HashSet<SmsProvider> smsProviders = null;
+					HashSet<SmsProvider>? smsProviders = null;
 					if (!_smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out smsProviders))
 					{
 						smsProviders = _smSwitchInitializer.SmsControls.FallBackPriority;
@@ -188,7 +188,7 @@ namespace SMSwitch
 				bool isSent = false;
 				while (smsProvidersQueue.Any())
 				{
-					if (session?.SentAttempts?.Any() ?? false)
+					if (session.SentAttempts.Any())
 					{
 						smsProvidersQueue.Dequeue();
 						if (!smsProvidersQueue.Any())
@@ -204,7 +204,7 @@ namespace SMSwitch
 						_ => throw new NotImplementedException(),
 					};
 
-					session?.SentAttempts?.Add(new AttemptDetailsSendSMS(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), isSent));
+					session.SentAttempts.Add(new AttemptDetailsSendSMS(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), isSent));
 					if (isSent)
 					{
 						session.SuccessfullySentTimestampUTC = DateTimeOffset.UtcNow;

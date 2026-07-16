@@ -14,10 +14,10 @@ namespace SMSwitch.Common
 				MaxRoundRobinAttempts = byte.TryParse(smsControlsConfig["MaxRoundRobinAttempts"], out byte maxRoundRobinAttempts) ? maxRoundRobinAttempts : (byte)1,
 				PriorityBasedOnCountryPhoneCode = smsControlsConfig.GetRequiredSection("PriorityBasedOnCountryPhoneCode")
 				.GetChildren()
-				.Where(c => !string.IsNullOrEmpty(c.Key) && c.Get<string[]>().All(p => Enum.TryParse(p, out SmsProvider _)))
+				.Where(c => !string.IsNullOrEmpty(c.Key) && (c.Get<string[]>()?.All(p => Enum.TryParse(p, out SmsProvider _)) ?? false))
 				.ToDictionary(countryCodeSection => countryCodeSection.Key,
-					countryCodeSection => countryCodeSection.Get<string[]>().Select(p => Enum.Parse<SmsProvider>(p)).ToHashSet()),
-				FallBackPriority = getFallBackPriority(smsControlsConfig.GetRequiredSection("FallBackPriority").Get<string[]>())
+					countryCodeSection => countryCodeSection.Get<string[]>()?.Select(p => Enum.Parse<SmsProvider>(p)).ToHashSet() ?? []),
+				FallBackPriority = getFallBackPriority(smsControlsConfig.GetRequiredSection("FallBackPriority").Get<string[]>() ?? [])
 			};
 		}
 
