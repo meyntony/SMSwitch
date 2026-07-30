@@ -9,16 +9,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- This library exposes ASP.NET Core types (WebApplication, RouteGroupBuilder,
+         IWebHostEnvironment), so it needs the shared framework. Previously these came in
+         only as a side effect of the Microsoft.AspNetCore.OpenApi package reference, whose
+         source generator does not build against Microsoft.OpenApi 3.x. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="EarthCountriesInfo" Version="10.2.0" />
     <PackageReference Include="HumanLanguages" Version="11.0.0" />
     <PackageReference Include="Meyn.Utilities" Version="10.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
-	<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
-	<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
-	<PackageReference Include="Microsoft.OpenApi" Version="3.9.0" />
+    <!-- The Microsoft.Extensions.* abstractions, Configuration.Binder included, ship in the
+         Microsoft.AspNetCore.App shared framework referenced above. Referencing them as
+         packages as well is redundant and raises NU1510. -->
     <PackageReference Include="MongoDbService" Version="10.2.0" />
     <PackageReference Include="MongoDbTokenManager" Version="10.2.0" />
     <PackageReference Include="Plivo" Version="5.52.3" />
