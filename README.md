@@ -251,6 +251,39 @@ As a safety measure the `DevConsole` provider refuses to operate when the app ru
 > `Production` waits for the real notification, so a send that succeeds locally is not by itself
 > evidence that the message was delivered.
 
+## Upgrading
+
+This release contains breaking changes. Recompiling is required — the changed signatures are
+source-compatible for most callers, but not binary-compatible.
+
+**Configuration**
+
+- `SMSwitchSettings:Plivo:WebhookSecret` has been **removed**. Delete it. The delivery webhook now
+  authenticates callers with Plivo's own request signature checked against `Plivo:AuthToken`, so no
+  secret travels in the callback URL. Nothing needs re-registering with Plivo, because the callback
+  URL is supplied per verification session rather than configured once.
+
+**API**
+
+- Every method on `SMSwitchService` gained an optional trailing `CancellationToken`.
+- `SmsControls.PriorityBasedOnCountryPhoneCode` and `SmsControls.FallBackPriority` are now
+  `List<SmsProvider>` instead of `HashSet<SmsProvider>`. They are ordered priorities, and a set
+  guaranteed neither the order nor the ability to repeat a provider.
+- `SMSwitchService`'s constructor takes an `IServiceProvider` instead of the three concrete provider
+  services. This only affects code constructing it by hand; dependency injection is unchanged.
+
+**Data**
+
+- Sessions are now removed 30 days after they expire, by a TTL index created at startup. On the
+  first run this deletes anything already older than that. If you need a longer audit window, change
+  it before deploying.
+- Phone numbers are no longer parsed through `long`, so a leading trunk zero is preserved rather
+  than silently dropped. Numbers written that way now resolve to a different session key, so any
+  session in flight for such a number at the moment of deployment will not be found. Those numbers
+  were previously being sent to the wrong destination, so this is the correction landing.
+- `SendSMS` sessions use a surrogate `_id` with the recipient-and-message hash moved to an indexed
+  `DedupeKey` field. Existing documents are simply ignored; nothing needs migrating.
+
 ## Contributing
 
 We welcome contributions! If you find a bug or have an idea for an improvement, please submit an issue or a pull request on [GitHub](https://github.com/prmeyn/SMSwitch). The repository includes a `TestAPIs` project — a minimal ASP.NET Core app with Swagger and ready-made `.http` requests for exercising the library locally.
