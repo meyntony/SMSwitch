@@ -1,13 +1,11 @@
 ﻿using HumanLanguages;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SMSwitch.Common;
 using SMSwitch.Common.DTOs;
 using SMSwitch.Countries.Database;
 using SMSwitch.Database;
 using SMSwitch.Database.DTOs;
-using SMSwitch.Services.DevConsole;
-using SMSwitch.Services.Plivo;
-using SMSwitch.Services.Twilio;
 
 namespace SMSwitch
 {
@@ -16,9 +14,7 @@ namespace SMSwitch
 
 		private readonly SMSwitchInitializer _smSwitchInitializer;
 
-		private readonly TwilioService _twilioService;
-		private readonly PlivoService _plivoService;
-		private readonly DevConsoleService _devConsoleService;
+		private readonly IServiceProvider _serviceProvider;
 
 		private readonly SMSwitchDbService _smSwitchDbService;
 		private readonly CountryDbService _countryDbService;
@@ -27,30 +23,43 @@ namespace SMSwitch
 
 		public SMSwitchService(
 			SMSwitchInitializer smSwitchInitializer,
-			TwilioService twilioService,
-			PlivoService plivoService,
-			DevConsoleService devConsoleService,
+			IServiceProvider serviceProvider,
 			SMSwitchDbService smSwitchDbService,
 			CountryDbService countryDbService,
 			ILogger<SMSwitchService> logger
 			)
 		{
 			_smSwitchInitializer = smSwitchInitializer;
-			_twilioService = twilioService;
-			_plivoService = plivoService;
-			_devConsoleService = devConsoleService;
+			_serviceProvider = serviceProvider;
 			_smSwitchDbService = smSwitchDbService;
 			_countryDbService = countryDbService;
 			_logger = logger;
 		}
 
-		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60)
+		/// <summary>
+		/// Replaces the switch that used to be repeated in SendOTP, SendSMS and VerifyOTP, each
+		/// with its own unreachable <see cref="NotImplementedException"/>. Adding a provider is now
+		/// a registration in <see cref="ServiceCollectionExtensions.AddSMSwitchServices"/>.
+		/// </summary>
+		private IServiceMobileNumbers ProviderFor(SmsProvider smsProvider) =>
+			_serviceProvider.GetRequiredKeyedService<IServiceMobileNumbers>(smsProvider);
+
+		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
 		{
+			if (!(mobileWithCountryCode?.IsValid() ?? false))
+			{
+				_logger.LogWarning("Refusing to send OTP: the mobile number is missing or contains no digits");
+				return new SMSwitchResponseSendOTP()
+				{
+					IsSent = false
+				};
+			}
+
 			SMSwitchResponseSendOTP? responseSendOTP = null;
 			SMSwitchSession? session = null;
-			try 
+			try
 			{
-				session = await _smSwitchDbService.GetOrCreateAndGetLatestSession(mobileWithCountryCode);
+				session = await _smSwitchDbService.GetOrCreateAndGetLatestSession(mobileWithCountryCode, cancellationToken);
 
 				if (session is null)
 				{
@@ -79,11 +88,9 @@ namespace SMSwitch
 				else
 				{
 					smsProvidersQueue = new();
-					HashSet<SmsProvider>? smsProviders = null;
-					if (!_smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out smsProviders))
-					{
-						smsProviders = _smSwitchInitializer.SmsControls.FallBackPriority;
-					}
+					var smsProviders = _smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out var configuredProviders)
+							? configuredProviders
+							: _smSwitchInitializer.SmsControls.FallBackPriority;
 					for (int i = 0; i < _smSwitchInitializer.SmsControls.MaxRoundRobinAttempts; i++)
 					{
 						foreach (SmsProvider smsProvider in smsProviders)
@@ -111,13 +118,8 @@ namespace SMSwitch
 							break;
 						}
 					}
-					responseSendOTP = smsProvidersQueue.Peek() switch
-					{
-						SmsProvider.Twilio => await _twilioService.SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent),
-						SmsProvider.Plivo => await _plivoService.SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent),
-						SmsProvider.DevConsole => await _devConsoleService.SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent),
-						_ => throw new NotImplementedException(),
-					};
+					responseSendOTP = await ProviderFor(smsProvidersQueue.Peek())
+						.SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent, resendCooldownPeriodInSeconds, cancellationToken);
 
 					session.SentAttempts.Add(new AttemptDetailsSendOTP(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), responseSendOTP));
 					if (responseSendOTP.IsSent)
@@ -127,26 +129,32 @@ namespace SMSwitch
 				}
 
 				session.SmsProvidersQueue = smsProvidersQueue;
-				await _smSwitchDbService.UpdateSession(session);
+				await _smSwitchDbService.UpdateSession(session, cancellationToken);
 
 				if (responseSendOTP == null || !responseSendOTP.IsSent)
 				{
-					_logger.LogCritical("Unable to send OTP to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
+					_logger.LogError("Unable to send OTP to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
 				}
 			}
 			catch (Exception exception) 
 			{
-				_logger.LogCritical(exception, "Unable to send OTP to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
+				_logger.LogError(exception, "Unable to send OTP to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
 			}
 			
 			return responseSendOTP ?? new SMSwitchResponseSendOTP() { IsSent = false }; 
 		}
 
-		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
 		{
+			if (!(mobileWithCountryCode?.IsValid() ?? false))
+			{
+				_logger.LogWarning("Refusing to send SMS: the mobile number is missing or contains no digits");
+				return false;
+			}
+
 			try
 			{
-				var session = await _smSwitchDbService.GetOrCreateAndGetLatestSendSMSSession(mobileWithCountryCode, shortMessageServiceMessage);
+				var session = await _smSwitchDbService.GetOrCreateAndGetLatestSendSMSSession(mobileWithCountryCode, shortMessageServiceMessage, cancellationToken);
 
 				if (session.SentAttempts.Any())
 				{
@@ -166,11 +174,9 @@ namespace SMSwitch
 				else
 				{
 					smsProvidersQueue = new();
-					HashSet<SmsProvider>? smsProviders = null;
-					if (!_smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out smsProviders))
-					{
-						smsProviders = _smSwitchInitializer.SmsControls.FallBackPriority;
-					}
+					var smsProviders = _smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out var configuredProviders)
+							? configuredProviders
+							: _smSwitchInitializer.SmsControls.FallBackPriority;
 					for (int i = 0; i < _smSwitchInitializer.SmsControls.MaxRoundRobinAttempts; i++)
 					{
 						foreach (SmsProvider smsProvider in smsProviders)
@@ -196,13 +202,8 @@ namespace SMSwitch
 							break;
 						}
 					}
-					isSent = smsProvidersQueue.Peek() switch
-					{
-						SmsProvider.Twilio => await _twilioService.SendSMS(mobileWithCountryCode, shortMessageServiceMessage),
-						SmsProvider.Plivo => await _plivoService.SendSMS(mobileWithCountryCode, shortMessageServiceMessage),
-						SmsProvider.DevConsole => await _devConsoleService.SendSMS(mobileWithCountryCode, shortMessageServiceMessage),
-						_ => throw new NotImplementedException(),
-					};
+					isSent = await ProviderFor(smsProvidersQueue.Peek())
+						.SendSMS(mobileWithCountryCode, shortMessageServiceMessage, resendCooldownPeriodInSeconds, cancellationToken);
 
 					session.SentAttempts.Add(new AttemptDetailsSendSMS(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), isSent));
 					if (isSent)
@@ -217,61 +218,96 @@ namespace SMSwitch
 				}
 
 				session.SmsProvidersQueue = smsProvidersQueue;
-				await _smSwitchDbService.UpdateSendSMSSession(session);
+				await _smSwitchDbService.UpdateSendSMSSession(session, cancellationToken);
 
 				if (!isSent)
 				{
-					_logger.LogCritical("Unable to send SMS to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
+					_logger.LogError("Unable to send SMS to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
 				}
 
 				return isSent;
 			}
 			catch (Exception exception)
 			{
-				_logger.LogCritical(exception, "Unable to send SMS to {PhoneNumber} with message: {shortMessageServiceMessage}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, shortMessageServiceMessage);
+				_logger.LogError(exception, "Unable to send SMS to {PhoneNumber} with message: {shortMessageServiceMessage}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, shortMessageServiceMessage);
 				return false;
 			}
 		}
 
-		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
+		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP, CancellationToken cancellationToken = default)
 		{
-			var session = await _smSwitchDbService.GetLatestSession(mobileWithCountryCode);
-
-			if (session?.SmsProvidersQueue?.Any() ?? false)
+			if (!(mobileWithCountryCode?.IsValid() ?? false))
 			{
-				var mobileNumberVerified =  session.SmsProvidersQueue.Peek() switch
+				_logger.LogWarning("Refusing to verify OTP: the mobile number is missing or contains no digits");
+				return new SMSwitchResponseVerifyOTP()
 				{
-					SmsProvider.Twilio => await _twilioService.VerifyOTP(mobileWithCountryCode, OTP),
-					SmsProvider.Plivo => await _plivoService.VerifyOTP(mobileWithCountryCode, OTP),
-					SmsProvider.DevConsole => await _devConsoleService.VerifyOTP(mobileWithCountryCode, OTP),
-					_ => throw new NotImplementedException(),
+					Verified = false,
+					Expired = true
 				};
+			}
 
-				if (mobileNumberVerified.Verified)
+			try
+			{
+				var session = await _smSwitchDbService.GetLatestSession(mobileWithCountryCode, cancellationToken);
+
+				if (session?.SmsProvidersQueue?.Any() ?? false)
 				{
-					session.SuccessfullyVerifiedTimestampUTC = DateTimeOffset.UtcNow;
-					_ = _countryDbService.FeedbackAsync(
-						countryPhoneCode: mobileWithCountryCode.CountryPhoneCodeAsNumericString,
-						phoneNumberLength: (byte)mobileWithCountryCode.PhoneNumberAsNumericString.Length,
-						countryIsoCode: mobileWithCountryCode.CountryIsoCode);
+					var mobileNumberVerified = await ProviderFor(session.SmsProvidersQueue.Peek())
+						.VerifyOTP(mobileWithCountryCode, OTP, cancellationToken);
+
+					SMSwitchSession? updatedSession;
+					if (mobileNumberVerified.Verified)
+					{
+						updatedSession = await _smSwitchDbService.RecordSuccessfulVerification(session.SessionId, cancellationToken);
+						if (updatedSession is null)
+						{
+							// The session was exhausted, expired or already verified by a concurrent
+							// request while this provider call was in flight, so this success cannot
+							// be honoured.
+							_logger.LogInformation("Verification succeeded too late to be accepted for {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber, session.SessionId);
+							return new SMSwitchResponseVerifyOTP()
+							{
+								Verified = false,
+								Expired = true
+							};
+						}
+
+						// Deliberately not awaited: recording the observed number length must not
+						// slow down or fail a verification. The continuation keeps a failure from
+						// becoming an unobserved task exception.
+						_ = _countryDbService.FeedbackAsync(
+							countryPhoneCode: mobileWithCountryCode.CountryPhoneCodeAsNumericString,
+							phoneNumberLength: (byte)mobileWithCountryCode.PhoneNumberAsNumericString.Length,
+							countryIsoCode: mobileWithCountryCode.CountryIsoCode)
+							.ContinueWith(
+								task => _logger.LogError(task.Exception, "Unable to record country feedback for {CountryIsoCode}", mobileWithCountryCode.CountryIsoCode),
+								TaskContinuationOptions.OnlyOnFaulted);
+					}
+					else
+					{
+						updatedSession = await _smSwitchDbService.RecordFailedVerificationAttempt(session.SessionId, cancellationToken);
+					}
+
+					mobileNumberVerified.Expired = !(updatedSession?.HasNotExpired(_smSwitchInitializer.SmsControls.MaximumFailedAttemptsToVerify) ?? false);
+					return mobileNumberVerified;
+				}
+
+				if (session is not null)
+				{
+					await _smSwitchDbService.RecordFailedVerificationAttempt(session.SessionId, cancellationToken);
 				}
 				else
 				{
-					session.FailedVerificationAttemptsDateTimeOffset.Add(DateTimeOffset.UtcNow);
+					_logger.LogInformation("Session not found: Unable to verify OTP for {PhoneNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
 				}
-				await _smSwitchDbService.UpdateSession(session);
-				mobileNumberVerified.Expired = !session.HasNotExpired(_smSwitchInitializer.SmsControls.MaximumFailedAttemptsToVerify);
-				return mobileNumberVerified;
 			}
-			if (session is not null)
+			catch (Exception exception)
 			{
-				session.FailedVerificationAttemptsDateTimeOffset.Add(DateTimeOffset.UtcNow);
-				await _smSwitchDbService.UpdateSession(session);
+				// SendOTP and SendSMS both contain their failures; this method used to let a
+				// database error escape to the caller instead.
+				_logger.LogError(exception, "Unable to verify OTP for {PhoneNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
 			}
-			else 
-			{
-				_logger.LogInformation("Session not found: Unable to verify OTP for {PhoneNumber}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
-			}
+
 			return new SMSwitchResponseVerifyOTP() {
 				Verified = false,
 				Expired = true

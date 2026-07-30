@@ -23,13 +23,17 @@ namespace SMSwitch.Services.Plivo
 		/// Plivo support said we need to contact them to add more translations of their SMS template in different languages
 		/// I contacted them and added da for Danish
 		/// </summary>
-		private static HashSet<string> _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate =>
+		private static readonly HashSet<string> _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate =
 			["en",
 			"da"];
-		private static HashSet<LanguageIsoCode> _supportedLanguageIsoCodesForVerifyDefaultTemplate => _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Select(isoCodeString => HumanHelper.CreateLanguageIsoCode(isoCodeString)).ToHashSet();
+		// Built once. As expression-bodied properties these reallocated the set and re-parsed every
+		// ISO code on each access, several times per SendOTP.
+		private static readonly HashSet<LanguageIsoCode> _supportedLanguageIsoCodesForVerifyDefaultTemplate = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Select(isoCodeString => HumanHelper.CreateLanguageIsoCode(isoCodeString)).ToHashSet();
+
+		private static readonly HashSet<LanguageId> _supportedLanguageIdsForVerifyDefaultTemplate = _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).ToHashSet();
 
 
-		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60)
+		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (_plivoInitializer.PlivoApi is null || _plivoInitializer.PlivoSettings is null)
 				return new SMSwitchResponseSendOTP() { IsSent = false };
@@ -39,7 +43,7 @@ namespace SMSwitch.Services.Plivo
 			{
 				preferredLocale = preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Contains(l))?.ToIsoCodeString()
 				??
-				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).Contains(l.LanguageId))?.ToIsoCodeString()
+				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIdsForVerifyDefaultTemplate.Contains(l.LanguageId))?.ToIsoCodeString()
 				??
 				"en";
 
@@ -58,12 +62,12 @@ namespace SMSwitch.Services.Plivo
 					channel: "sms",
 					locale: preferredLocale);
 
-				await _plivoDbService.SetLatestSessionUUID(mobileWithCountryCode, verifySessionResponse.SessionUUID);
+				await _plivoDbService.SetLatestSessionUUID(mobileWithCountryCode, verifySessionResponse.SessionUUID, cancellationToken);
 
 				bool isSent = false;
-				if (verifySessionResponse.StatusCode.ToString().StartsWith("2"))
+				if (IsSuccessStatusCode(verifySessionResponse.StatusCode))
 				{
-					isSent = await _plivoDbService.KeepCheckingTheDatabaseIfSentEvery2seconds(verifySessionResponse.SessionUUID, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds));
+					isSent = await _plivoDbService.KeepCheckingTheDatabaseIfSentEvery2seconds(verifySessionResponse.SessionUUID, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds), cancellationToken);
 				}
 				return new SMSwitchResponseSendOTP()
 				{
@@ -81,7 +85,7 @@ namespace SMSwitch.Services.Plivo
 			}
 		}
 
-		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (_plivoInitializer.PlivoApi is null || _plivoInitializer.PlivoSettings is null)
 				return false;
@@ -104,7 +108,7 @@ namespace SMSwitch.Services.Plivo
 				if (response != null && response.MessageUuid.Any())
 				{
 					var messageUuid = response.MessageUuid.First();
-					return await KeepCheckingIfSentEvery2seconds(messageUuid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds));
+					return await KeepCheckingIfSentEvery2seconds(messageUuid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds), cancellationToken);
 				}
 
 				_logger.LogWarning("Failed to send SMS to {ToNumber}. Response: {Response}",
@@ -119,7 +123,14 @@ namespace SMSwitch.Services.Plivo
 			}
 		}
 
-		private async Task<bool> KeepCheckingIfSentEvery2seconds(string messageUuid, DateTimeOffset expiry)
+		/// <summary>
+		/// Plivo reports the HTTP status on the response object. Testing it with
+		/// StatusCode.ToString().StartsWith("2") also matched 422 Unprocessable Entity, so a
+		/// rejected request was read as a success.
+		/// </summary>
+		private static bool IsSuccessStatusCode(uint statusCode) => statusCode is >= 200 and < 300;
+
+		private async Task<bool> KeepCheckingIfSentEvery2seconds(string messageUuid, DateTimeOffset expiry, CancellationToken cancellationToken)
 		{
 			// Fetch the message status
 			var messageDetails = await _plivoInitializer.PlivoApi!.Message.GetAsync(messageUuid);
@@ -129,25 +140,28 @@ namespace SMSwitch.Services.Plivo
 			{
 				return true;
 			}
-			else if (DateTimeOffset.UtcNow > expiry)
+			else if (DateTimeOffset.UtcNow > expiry || cancellationToken.IsCancellationRequested)
 			{
 				return false;
 			}
-			else 
+			else
 			{
-				await Task.Delay(TimeSpan.FromSeconds(2));
-				return await KeepCheckingIfSentEvery2seconds(messageUuid, expiry);
+				// The Plivo SDK takes no CancellationToken, so the token cannot reach the fetch
+				// itself. Honouring it around the wait still stops this loop from running on for
+				// the rest of the window after the caller has gone away.
+				await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+				return await KeepCheckingIfSentEvery2seconds(messageUuid, expiry, cancellationToken);
 			}
 		}
 
-		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
+		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP, CancellationToken cancellationToken = default)
 		{
 			if (_plivoInitializer.PlivoApi is null || _plivoInitializer.PlivoSettings is null)
 				return new SMSwitchResponseVerifyOTP() { Verified = false };
 
 			try
 			{
-				var sessionUuid = await _plivoDbService.GetLatestSessionUUID(mobileWithCountryCode);
+				var sessionUuid = await _plivoDbService.GetLatestSessionUUID(mobileWithCountryCode, cancellationToken);
 				if (string.IsNullOrWhiteSpace(sessionUuid))
 				{
 					_logger.LogInformation("No Plivo session found for +{MobileNumber}, unable to verify OTP", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
@@ -156,15 +170,20 @@ namespace SMSwitch.Services.Plivo
 						Verified = false
 					};
 				}
+				// Deciding from the Validate response itself keeps this to one round trip.
+				// Validating and then separately Get-ing the session status meant two concurrent
+				// verifies of the same OTP could both observe "verified" and both succeed — the
+				// same race that was fixed for the DevConsole provider.
 				var response = _plivoInitializer.PlivoApi.VerifySession.Validate(session_uuid: sessionUuid, otp: OTP);
-				if (_plivoInitializer.PlivoApi.VerifySession.Get(sessionUuid).Status.ToLower() == "verified")
+				if (response is not null && IsSuccessStatusCode(response.StatusCode))
 				{
-					await _plivoDbService.ClearSessionUUID(mobileWithCountryCode);
+					await _plivoDbService.ClearSessionUUID(mobileWithCountryCode, cancellationToken);
 					return new SMSwitchResponseVerifyOTP()
 					{
 						Verified = true
 					};
 				}
+				_logger.LogInformation("Plivo rejected the OTP for +{MobileNumber}: status {StatusCode} {Message}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber, response?.StatusCode, response?.Message);
 			}
 			catch(Exception exception)
 			{

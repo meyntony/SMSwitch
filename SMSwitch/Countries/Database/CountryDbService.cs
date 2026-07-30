@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using MongoDbService;
 using SMSwitch.Countries.Database.DTOs;
-using System.Text;
 
 namespace SMSwitch.Countries.Database
 {
@@ -12,7 +11,7 @@ namespace SMSwitch.Countries.Database
     {
         private readonly ILogger<CountryDbService> _logger;
         private IMongoCollection<CountryInfo> _countryPhoneCodeCollection;
-        private CountryInitializer _countryInitializer;
+        private readonly HashSet<CountryInfo> _dataSource;
 
 
 
@@ -20,42 +19,44 @@ namespace SMSwitch.Countries.Database
         {
             _logger = logger;
             _countryPhoneCodeCollection = mongoService.Database.GetCollection<CountryInfo>(nameof(CountryInfo), new MongoCollectionSettings() { ReadConcern = ReadConcern.Majority, WriteConcern = WriteConcern.WMajority });
-            _countryInitializer = countryInitializer;
+            // Built once. As an expression-bodied property this rebuilt every country object on
+            // each access, several times per load.
+            _dataSource = BuildDataSource(countryInitializer);
         }
 
         private async Task LoadCollectionFromCodeBase()
         {
-            if (!(_countryPhoneCodeCollection.EstimatedDocumentCount() > 0))
+            // Read the collection directly instead of going through GetAllCountriesFromDb: that
+            // method calls back into this one when the collection looks empty, and the previous
+            // gate on the *estimated* document count meant the pair could call each other until
+            // the stack ran out if the estimate disagreed with reality.
+            var allCountriesFromDb = await _countryPhoneCodeCollection.Find(FilterDefinition<CountryInfo>.Empty).ToListAsync();
+
+            if (allCountriesFromDb.Count == 0)
             {
-                foreach (var countryInfo in _dataSource)
+                await _countryPhoneCodeCollection.InsertManyAsync(_dataSource);
+                return;
+            }
+
+            var localVersionsByCountryCode = _dataSource.ToDictionary(c => c.CountryCode);
+            var options = new ReplaceOptions { IsUpsert = true };
+
+            foreach (var countryInfoFromDb in allCountriesFromDb)
+            {
+                localVersionsByCountryCode.TryGetValue(countryInfoFromDb.CountryCode, out var localVersion);
+                if (NeedsAnUpdateInDb(countryInfoFromDb, localVersion, out CountryInfo? latestVersion))
                 {
-                    await _countryPhoneCodeCollection.InsertOneAsync(countryInfo);
+                    var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, countryInfoFromDb.CountryCode);
+                    await _countryPhoneCodeCollection.ReplaceOneAsync(filter, latestVersion!, options);
                 }
             }
-            else
-            {
-                var allCountriesFromDb = await GetAllCountriesFromDb();
-                foreach (var countryInfoFromDb in allCountriesFromDb)
-                {
-                    var localVersion = _dataSource.FirstOrDefault(c => c.CountryCode == countryInfoFromDb.CountryCode);
-                    if (NeedsAnUpdateInDb(countryInfoFromDb, localVersion, out CountryInfo? latestVersion))
-                    {
-                        var options = new ReplaceOptions { IsUpsert = true };
-                        var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, countryInfoFromDb.CountryCode);
-                        await _countryPhoneCodeCollection.ReplaceOneAsync(filter, latestVersion!, options);
-                    }
-                }
 
-                var allCountriesFromLocalNotInDB = _dataSource.Where(c => !allCountriesFromDb.Any(cdb => cdb.CountryCode == c.CountryCode));
-                foreach (var countryFromLocalNotInDB in allCountriesFromLocalNotInDB)
-                {
-                    if (NeedsAnUpdateInDb(null, countryFromLocalNotInDB, out CountryInfo? latestVersion))
-                    {
-                        var options = new ReplaceOptions { IsUpsert = true };
-                        var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, latestVersion!.CountryCode);
-                        await _countryPhoneCodeCollection.ReplaceOneAsync(filter, latestVersion!, options);
-                    }
-                }
+            var countryCodesInDb = allCountriesFromDb.Select(c => c.CountryCode).ToHashSet();
+            var allCountriesFromLocalNotInDB = _dataSource.Where(c => !countryCodesInDb.Contains(c.CountryCode));
+            foreach (var countryFromLocalNotInDB in allCountriesFromLocalNotInDB)
+            {
+                var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, countryFromLocalNotInDB.CountryCode);
+                await _countryPhoneCodeCollection.ReplaceOneAsync(filter, countryFromLocalNotInDB, options);
             }
         }
 
@@ -150,52 +151,57 @@ namespace SMSwitch.Countries.Database
             return await _countryPhoneCodeCollection.Find(e => true).ToListAsync();
         }
 
-        public async Task FeedbackAsync(string countryPhoneCode, byte phoneNumberLength, CountryIsoCode? countryIsoCode)
+        // This data is shared by every caller of the database, and it is fed by whatever number a
+        // user managed to verify, so implausible lengths must not be able to widen a country's
+        // accepted set. E.164 caps the whole number at 15 digits.
+        private const byte MinimumPlausiblePhoneNumberLength = 4;
+        private const byte MaximumPlausiblePhoneNumberLength = 15;
+
+        public async Task FeedbackAsync(string countryPhoneCode, byte phoneNumberLength, CountryIsoCode? countryIsoCode, CancellationToken cancellationToken = default)
         {
-            if (countryIsoCode is not null)
+            if (countryIsoCode is null)
             {
-                var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, countryIsoCode.ToString());
-                var countryToUpdate = await _countryPhoneCodeCollection.Find(filter).FirstOrDefaultAsync();
-                if (countryToUpdate == null)
-                {
-                    _logger.LogInformation("No CountryInfo found for {CountryIsoCode}, skipping feedback", countryIsoCode);
-                    return;
-                }
-                if (countryToUpdate.ValidLengthsAndFormat == null)
-                {
-                    countryToUpdate.ValidLengthsAndFormat = [];
-                }
-                if (countryToUpdate.CountryPhoneCode == countryPhoneCode && !countryToUpdate.ValidLengthsAndFormat.TryGetValue(phoneNumberLength.ToString(), out string? _))
-                {
-                    countryToUpdate.ValidLengthsAndFormat.Add(phoneNumberLength.ToString(), ConvertByteToHashString(phoneNumberLength));
-                    var options = new ReplaceOptions { IsUpsert = true };
-                    await _countryPhoneCodeCollection.ReplaceOneAsync(filter, countryToUpdate, options);
-                }
+                return;
+            }
+
+            if (phoneNumberLength is < MinimumPlausiblePhoneNumberLength or > MaximumPlausiblePhoneNumberLength)
+            {
+                _logger.LogInformation("Ignoring implausible phone number length {PhoneNumberLength} reported for {CountryIsoCode}", phoneNumberLength, countryIsoCode);
+                return;
+            }
+
+            var lengthKey = phoneNumberLength.ToString();
+            var lengthField = $"{nameof(CountryInfo.ValidLengthsAndFormat)}.{lengthKey}";
+
+            // One conditional update rather than read-modify-write: the phone-code check and the
+            // "not already recorded" check run on the server, so concurrent observations for
+            // different lengths can no longer overwrite each other.
+            var filter = Builders<CountryInfo>.Filter.Eq(e => e.CountryCode, countryIsoCode.ToString())
+                & Builders<CountryInfo>.Filter.Eq(e => e.CountryPhoneCode, countryPhoneCode)
+                & Builders<CountryInfo>.Filter.Exists(lengthField, false);
+
+            var update = Builders<CountryInfo>.Update.Set(lengthField, new string('#', phoneNumberLength));
+
+            // Deliberately no upsert: feedback must never bring a country document into existence.
+            var result = await _countryPhoneCodeCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
+
+            if (result.MatchedCount == 0)
+            {
+                _logger.LogDebug("No CountryInfo updated for {CountryIsoCode} with phone code {CountryPhoneCode} and length {PhoneNumberLength}; it is either unknown, mismatched, or already recorded", countryIsoCode, countryPhoneCode, phoneNumberLength);
             }
         }
 
-        private static string ConvertByteToHashString(byte numHashes)
-        {
-            // Create a string with the specified number of '#' characters
-            StringBuilder hashString = new StringBuilder();
-            for (int i = 0; i < numHashes; i++)
+
+
+        private static HashSet<CountryInfo> BuildDataSource(CountryInitializer countryInitializer) =>
+            EarthCountriesInfo.Countries.CountryPropertiesDictionary.Select(c => new CountryInfo
             {
-                hashString.Append('#');
-            }
-
-            return hashString.ToString();
-        }
-
-
-
-        private HashSet<CountryInfo> _dataSource => EarthCountriesInfo.Countries.CountryPropertiesDictionary.Select(c => new CountryInfo
-        {
-            CountryCode = c.Key.ToString(),
-            CountryNames = c.Value.CountryNames.ToDictionary(c => c.Key.ToString(), c => c.Value),
-            CountryPhoneCode = c.Value.CountryPhoneCode,
-            ValidLengthsAndFormat = c.Value.ValidLengthsAndFormat?.ToDictionary(vl => vl.Key.ToString(), vl => vl.Value),
-            IsSupported = _countryInitializer.SupportedCountries?.Any() ?? false ? _countryInitializer.SupportedCountries.Contains(c.Key) : true,
-        }).ToHashSet();
+                CountryCode = c.Key.ToString(),
+                CountryNames = c.Value.CountryNames.ToDictionary(c => c.Key.ToString(), c => c.Value),
+                CountryPhoneCode = c.Value.CountryPhoneCode,
+                ValidLengthsAndFormat = c.Value.ValidLengthsAndFormat?.ToDictionary(vl => vl.Key.ToString(), vl => vl.Value),
+                IsSupported = countryInitializer.SupportedCountries?.Any() ?? false ? countryInitializer.SupportedCountries.Contains(c.Key) : true,
+            }).ToHashSet();
 
     }
 }

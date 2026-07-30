@@ -17,10 +17,12 @@ namespace SMSwitch.Common.DTOs
 		public string CountryPhoneCodeAsNumericString => removeNonNumericString(CountryPhoneCode);
 		[JsonIgnore] 
         public string PhoneNumberAsNumericString => removeNonNumericString(PhoneNumber);
-        private long removeNonNumeric(string input) => long.Parse(removeNonNumericString(input));
-		[JsonIgnore] 
-        public string CountryPhoneCodeAndPhoneNumber => $"{removeNonNumeric(CountryPhoneCode)}{removeNonNumeric(PhoneNumber)}";
-        public byte PhoneNumberNumericLength() => Convert.ToByte($"{removeNonNumeric(PhoneNumber)}".Length);
+		// Concatenating the numeric strings rather than parsing them as a long keeps this total:
+		// long.Parse threw on an empty or over-long number, and it silently dropped the leading
+		// trunk zero that many countries write their national mobile numbers with.
+		[JsonIgnore]
+        public string CountryPhoneCodeAndPhoneNumber => $"{CountryPhoneCodeAsNumericString}{PhoneNumberAsNumericString}";
+        public byte PhoneNumberNumericLength() => (byte)Math.Min(PhoneNumberAsNumericString.Length, byte.MaxValue);
 
         public bool IsValid() => !string.IsNullOrWhiteSpace(CountryPhoneCodeAsNumericString) && !string.IsNullOrWhiteSpace(PhoneNumberAsNumericString);
     }

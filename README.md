@@ -19,6 +19,10 @@
 
 For each phone number, SMSwitch builds a queue of providers from your configured priorities (`PriorityBasedOnCountryPhoneCode`, falling back to `FallBackPriority`), repeated `MaxRoundRobinAttempts` times. Each send works through the queue until a provider succeeds; verification is routed to the provider that sent the OTP. A verification session expires after `SessionTimeoutInSeconds` or `MaximumFailedAttemptsToVerify` failed attempts. Repeated sends inside the resend cooldown return the previous result instead of sending again.
 
+Provider priority is an ordered list, and repeats are meaningful: `[ "Twilio", "Plivo", "Twilio" ]` is a valid priority that tries Twilio, then Plivo, then Twilio again.
+
+Sessions are kept for **30 days after they expire** and are then removed automatically by a MongoDB TTL index, so the audit trail stays available for recent activity without the collections growing without bound. SMSwitch creates the indexes it needs at startup.
+
 ## Getting started
 
 ### 1. Install
@@ -90,7 +94,7 @@ Add the following to your `appsettings.json` and adjust the values (keep real cr
 | `AndroidAppHash` | Your Android app hash for SMS Retriever auto-read. |
 | `OtpLength` | OTP digit count. Applied to Twilio; Plivo is fixed at 6 (a warning is logged if they differ). |
 | `Plivo:SourceNumber` | Sender number for plain SMS via Plivo (not needed for OTPs). |
-| `Plivo:WebhookSecret` | Optional but recommended. Appended to the delivery-notification callback URL registered with Plivo; webhook calls without the matching secret are rejected with `401 Unauthorized`. |
+| `Plivo:WebhookSecret` | **Required if you use Plivo.** Appended to the delivery-notification callback URL registered with Plivo; webhook calls without the matching secret are rejected with `401 Unauthorized`. The webhook fails closed, so if this is not set every delivery notification is rejected and Plivo sends will never be confirmed. |
 
 ### 4. Register the services
 
@@ -177,6 +181,8 @@ As a safety measure the `DevConsole` provider refuses to operate when the app ru
 ## Contributing
 
 We welcome contributions! If you find a bug or have an idea for an improvement, please submit an issue or a pull request on [GitHub](https://github.com/prmeyn/SMSwitch). The repository includes a `TestAPIs` project — a minimal ASP.NET Core app with Swagger and ready-made `.http` requests for exercising the library locally.
+
+> ⚠️ `TestAPIs` is a local development harness, not a deployable service. Its endpoints have no authentication and send real SMS at your account's expense, so they are only mapped when the app runs in the `Development` environment. Do not remove that guard.
 
 ## License
 

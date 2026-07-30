@@ -1,16 +1,42 @@
 @TestAPIs_HostAddress = http://localhost:5224
 
-POST {{TestAPIs_HostAddress}}/sendotp?countryIsoCode=DK&countryPhoneCode=45&phoneNumber=12345678&preferredLanguageIsoCode=en&resendCooldownPeriodInSeconds=30
+POST {{TestAPIs_HostAddress}}/sendotp
+Content-Type: application/json
 Accept: application/json
+
+{
+  "countryIsoCode": "DK",
+  "countryPhoneCode": "45",
+  "phoneNumber": "12345678",
+  "preferredLanguageIsoCode": "en",
+  "resendCooldownPeriodInSeconds": 30
+}
 
 ###
 
-POST {{TestAPIs_HostAddress}}/verifyotp?countryIsoCode=DK&countryPhoneCode=45&phoneNumber=12345678&oneTimePassword=123456
+POST {{TestAPIs_HostAddress}}/verifyotp
+Content-Type: application/json
 Accept: application/json
+
+{
+  "countryIsoCode": "DK",
+  "countryPhoneCode": "45",
+  "phoneNumber": "12345678",
+  "oneTimePassword": "123456"
+}
 
 ###
 
-POST {{TestAPIs_HostAddress}}/sendsms?countryIsoCode=DK&countryPhoneCode=45&phoneNumber=12345678&message=Hello%20from%20SMSwitch&resendCooldownPeriodInSeconds=30
+POST {{TestAPIs_HostAddress}}/sendsms
+Content-Type: application/json
 Accept: application/json
+
+{
+  "countryIsoCode": "DK",
+  "countryPhoneCode": "45",
+  "phoneNumber": "12345678",
+  "message": "Hello from SMSwitch",
+  "resendCooldownPeriodInSeconds": 30
+}
 
 ###

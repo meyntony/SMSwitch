@@ -2,8 +2,8 @@
 {
 	public static class ConstantStrings
 	{
-		public static string SMSwitchSettingsName = "SMSwitchSettings";
-		public static string SMSwitchGroupName = "smswitch";
-		public static string SMSwitchTagName = "SMSwitch";
+		public const string SMSwitchSettingsName = "SMSwitchSettings";
+		public const string SMSwitchGroupName = "smswitch";
+		public const string SMSwitchTagName = "SMSwitch";
 	}
 }

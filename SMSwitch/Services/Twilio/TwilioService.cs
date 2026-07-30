@@ -25,7 +25,7 @@ namespace SMSwitch.Services.Twilio
 		/// //https://www.twilio.com/docs/verify/supported-languages#verify-default-template
 		/// These are the supported language ISO codes as of 13-July-2024
 		/// </summary>
-		private static HashSet<string> _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate => 
+		private static readonly HashSet<string> _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate =
             ["af",
 			"ar",
 			"ca",
@@ -69,16 +69,20 @@ namespace SMSwitch.Services.Twilio
 			"zh-CN",
 			"zh-HK"];
 
-        private static HashSet<LanguageIsoCode> _supportedLanguageIsoCodesForVerifyDefaultTemplate => _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Select(isoCodeString => HumanHelper.CreateLanguageIsoCode(isoCodeString)).ToHashSet();
+        // Built once. As expression-bodied properties these reallocated the set and re-parsed every
+        // ISO code on each access, several times per SendOTP.
+        private static readonly HashSet<LanguageIsoCode> _supportedLanguageIsoCodesForVerifyDefaultTemplate = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Select(isoCodeString => HumanHelper.CreateLanguageIsoCode(isoCodeString)).ToHashSet();
 
-		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60)
+        private static readonly HashSet<LanguageId> _supportedLanguageIdsForVerifyDefaultTemplate = _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).ToHashSet();
+
+		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
         {
 			if (_twilioInitializer.TwilioSettings is null)
 				return new SMSwitchResponseSendOTP() { IsSent = false };
 
             var locale = preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Contains(l))?.ToIsoCodeString()
 				??
-				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).Contains(l.LanguageId))?.ToIsoCodeString()
+				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIdsForVerifyDefaultTemplate.Contains(l.LanguageId))?.ToIsoCodeString()
 				??
 				"en";
 
@@ -118,10 +122,16 @@ namespace SMSwitch.Services.Twilio
 
 	
 
-		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (_twilioInitializer.TwilioSettings is null)
 				return false;
+
+			if (string.IsNullOrWhiteSpace(_twilioInitializer.TwilioSettings.TwilioPrivateSettings.RegisteredSenderPhoneNumber))
+			{
+				_logger.LogCritical("RegisteredSenderPhoneNumber missing!!");
+				return false;
+			}
 
 			try
 			{
@@ -134,7 +144,7 @@ namespace SMSwitch.Services.Twilio
 
 				if (!string.IsNullOrEmpty(message?.Sid))
 				{
-					return await KeepCheckingIfSentEvery2seconds(message.Sid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds));
+					return await KeepCheckingIfSentEvery2seconds(message.Sid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds), cancellationToken);
 				}
 				else
 				{
@@ -149,7 +159,7 @@ namespace SMSwitch.Services.Twilio
 			}
 		}
 
-		private async Task<bool> KeepCheckingIfSentEvery2seconds(string messageSid, DateTimeOffset expiry)
+		private async Task<bool> KeepCheckingIfSentEvery2seconds(string messageSid, DateTimeOffset expiry, CancellationToken cancellationToken)
 		{
 			// Fetch the message status
 			var fetchedMessage = await MessageResource.FetchAsync(messageSid);
@@ -159,18 +169,21 @@ namespace SMSwitch.Services.Twilio
 			{
 				return true;
 			}
-			else if (DateTimeOffset.UtcNow > expiry)
+			else if (DateTimeOffset.UtcNow > expiry || cancellationToken.IsCancellationRequested)
 			{
 				return false;
 			}
 			else
 			{
-				await Task.Delay(TimeSpan.FromSeconds(2));
-				return await KeepCheckingIfSentEvery2seconds(messageSid, expiry);
+				// The Twilio SDK takes no CancellationToken, so the token cannot reach the fetch
+				// itself. Honouring it around the wait still stops this loop from running on for
+				// the rest of the window after the caller has gone away.
+				await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+				return await KeepCheckingIfSentEvery2seconds(messageSid, expiry, cancellationToken);
 			}
 		}
 
-		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
+		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP, CancellationToken cancellationToken = default)
         {
 			if (_twilioInitializer.TwilioSettings is null)
 				return new SMSwitchResponseVerifyOTP() { Verified = false };
@@ -183,7 +196,7 @@ namespace SMSwitch.Services.Twilio
                     code: OTP,
                     pathServiceSid: _twilioInitializer.TwilioSettings.TwilioPrivateSettings.ServiceSid
                 );
-                verified = verification?.Status?.ToLower()?.Equals("approved") ?? false;
+                verified = string.Equals(verification?.Status, "approved", StringComparison.OrdinalIgnoreCase);
 
                 if (!verified)
                 {
@@ -192,7 +205,7 @@ namespace SMSwitch.Services.Twilio
             }
             catch (Exception exception)
             {
-				_logger.LogCritical(exception, "Could not verify OTP for +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
+				_logger.LogError(exception, "Could not verify OTP for +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
 				return new SMSwitchResponseVerifyOTP()
 				{
 					Verified = verified,
