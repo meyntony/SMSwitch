@@ -33,8 +33,7 @@ namespace SMSwitch.Services.Plivo
 						AuthId = plivoConfig["AuthId"]!,
 						AuthToken = plivoConfig["AuthToken"]!,
 						AppUuid = plivoConfig["AppUuid"]!,
-						SourceNumber = plivoConfig["SourceNumber"],
-						WebhookSecret = plivoConfig["WebhookSecret"]
+						SourceNumber = plivoConfig["SourceNumber"]
 					}
 				};
 
@@ -52,14 +51,12 @@ namespace SMSwitch.Services.Plivo
 			
 		}
 
-		internal string NotificationUrl
-		{
-			get
-			{
-				var url = new Uri(_settingsService.BaseUri, $"{ConstantStrings.SMSwitchGroupName}{PlivoNotificationEndpoint.PlivoNotificationRoute}").ToString();
-				var webhookSecret = PlivoSettings?.PlivoPrivateSettings.WebhookSecret;
-				return string.IsNullOrWhiteSpace(webhookSecret) ? url : $"{url}?secret={Uri.EscapeDataString(webhookSecret)}";
-			}
-		}
+		/// <summary>
+		/// Carries no secret. A shared secret used to be appended as a query parameter, which put
+		/// it in Plivo's outbound logs, every proxy in between, and this server's access log.
+		/// Callbacks are authenticated by Plivo's request signature instead.
+		/// </summary>
+		internal string NotificationUrl =>
+			new Uri(_settingsService.BaseUri, $"{ConstantStrings.SMSwitchGroupName}{PlivoNotificationEndpoint.PlivoNotificationRoute}").ToString();
 	}
 }

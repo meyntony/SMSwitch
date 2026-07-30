@@ -1,18 +1,21 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
+using Plivo.Utilities;
 using SMSwitch.Services.Plivo.Database;
 using SMSwitch.Services.Plivo.Database.DTOs;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace SMSwitch.Services.Plivo.WebHook
 {
 	public static class PlivoNotificationEndpoint
 	{
 		public const string PlivoNotificationRoute = "/plivonotification";
+
+		private const string SignatureHeader = "X-Plivo-Signature-V3";
+		private const string NonceHeader = "X-Plivo-Signature-V3-Nonce";
+
 		public static RouteGroupBuilder GroupPlivoNotificationApisV1(this RouteGroupBuilder group)
 		{
 			group.MapGet(PlivoNotificationRoute, async (
@@ -28,25 +31,34 @@ namespace SMSwitch.Services.Plivo.WebHook
 				[FromQuery] string Recipient,
 				[FromQuery] DateTime RequestTime,
 				[FromQuery] string SessionStatus,
-				[FromQuery] string SessionUUID,
-				[FromQuery] string? secret) =>
+				[FromQuery] string SessionUUID) =>
 			{
 				var logger = loggerFactory.CreateLogger(typeof(PlivoNotificationEndpoint).FullName!);
 
-				// Fail closed. Treating an unset secret as "no check required" left this endpoint
-				// anonymous, so anyone who could reach it could inject delivery notifications for
-				// any session UUID.
-				var expectedSecret = plivoInitializer.PlivoSettings?.PlivoPrivateSettings?.WebhookSecret;
-				if (string.IsNullOrWhiteSpace(expectedSecret))
+				var authToken = plivoInitializer.PlivoSettings?.PlivoPrivateSettings.AuthToken;
+				if (string.IsNullOrWhiteSpace(authToken))
 				{
-					logger.LogError("SMSwitchSettings:Plivo:WebhookSecret is not configured, so the Plivo delivery-notification webhook is rejecting every caller. Set it to the same value registered with Plivo.");
+					// Fail closed. Treating a missing check as "no check required" left this
+					// endpoint anonymous to anyone who could reach it.
+					logger.LogError("Plivo is not configured, so the delivery-notification webhook is rejecting every caller.");
 					return Results.Unauthorized();
 				}
-				if (!FixedTimeEquals(secret, expectedSecret))
+
+				// Verify against the URL this application handed to Plivo rather than one rebuilt
+				// from the incoming request: that is the URL Plivo actually signed, and it does not
+				// depend on how a proxy rewrote the scheme or host on the way in.
+				var signedUri = $"{plivoInitializer.NotificationUrl}{httpContext.Request.QueryString}";
+
+				if (!IsFromPlivo(
+						signedUri,
+						authToken,
+						httpContext.Request.Headers[SignatureHeader],
+						httpContext.Request.Headers[NonceHeader]))
 				{
-					logger.LogWarning("Rejected a Plivo delivery notification carrying a missing or incorrect secret");
+					logger.LogWarning("Rejected a Plivo delivery notification whose {SignatureHeader} did not verify", SignatureHeader);
 					return Results.Unauthorized();
 				}
+
 				try
 				{
 					await plivoDbService.UpdateSessionUUID(Recipient, SessionUUID, new PlivoNotification(AttemptSequence, AttemptUUID, Channel, ChannelErrorCode, ChannelStatus, RequestTime, SessionStatus, DateTimeOffset.UtcNow), httpContext.RequestAborted);
@@ -68,8 +80,39 @@ namespace SMSwitch.Services.Plivo.WebHook
 			return group;
 		}
 
-		private static bool FixedTimeEquals(string? provided, string expected) =>
-			provided is not null &&
-			CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(expected));
+		/// <summary>
+		/// Checks Plivo's request signature. This replaced a shared secret appended to the callback
+		/// URL as a query parameter, which meant the secret was written to Plivo's outbound logs,
+		/// every proxy in between, and this server's own access log. The signature is a per-request
+		/// HMAC over the URL and a nonce, so nothing secret travels in the URL at all.
+		/// </summary>
+		/// <remarks>
+		/// The header can carry more than one signature, comma separated, when an account has
+		/// several auth tokens in play, so any one of them verifying is enough.
+		/// </remarks>
+		internal static bool IsFromPlivo(string signedUri, string authToken, string? signatureHeader, string? nonce)
+		{
+			if (string.IsNullOrWhiteSpace(signatureHeader) || string.IsNullOrWhiteSpace(nonce))
+			{
+				return false;
+			}
+
+			foreach (var signature in signatureHeader.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+			{
+				try
+				{
+					if (XPlivoSignatureV3.VerifySignature(signedUri, nonce, signature, authToken, "GET", []))
+					{
+						return true;
+					}
+				}
+				catch
+				{
+					// A malformed signature must read as "not from Plivo", not as a 500.
+				}
+			}
+
+			return false;
+		}
 	}
 }
