@@ -36,7 +36,7 @@ namespace SMSwitch.Services.DevConsole
 			_logger = logger;
 		}
 
-		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
+		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte deliveryConfirmationTimeoutInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (RefusedInProduction("send OTP", mobileWithCountryCode))
 			{
@@ -69,7 +69,7 @@ namespace SMSwitch.Services.DevConsole
 			}
 		}
 
-		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte deliveryConfirmationTimeoutInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (RefusedInProduction("send SMS", mobileWithCountryCode))
 			{

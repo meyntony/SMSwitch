@@ -66,7 +66,7 @@ if (app.Environment.IsDevelopment())
 
 		var languageCodes = new HashSet<LanguageIsoCode> { HumanHelper.CreateLanguageIsoCode(request.PreferredLanguageIsoCode) };
 
-		return Results.Ok(await smsSwitchService.SendOTP(mobileNumber, languageCodes, UserAgent.WebBrowser, request.ResendCooldownPeriodInSeconds, cancellationToken));
+		return Results.Ok(await smsSwitchService.SendOTP(mobileNumber, languageCodes, UserAgent.WebBrowser, request.ResendCooldownPeriodInSeconds, request.DeliveryConfirmationTimeoutInSeconds, cancellationToken));
 	})
 	.WithName("SendOTP");
 
@@ -102,7 +102,7 @@ if (app.Environment.IsDevelopment())
 			return Results.BadRequest("countryPhoneCode and phoneNumber must both contain digits.");
 		}
 
-		return Results.Ok(await smsSwitchService.SendSMS(mobileNumber, request.Message, request.ResendCooldownPeriodInSeconds, cancellationToken));
+		return Results.Ok(await smsSwitchService.SendSMS(mobileNumber, request.Message, request.ResendCooldownPeriodInSeconds, request.DeliveryConfirmationTimeoutInSeconds, cancellationToken));
 	})
 	.WithName("SendSMS");
 }
@@ -117,6 +117,7 @@ public sealed record SendOtpRequest
 	public string PhoneNumber { get; init; } = "";
 	public string PreferredLanguageIsoCode { get; init; } = "en";
 	public byte ResendCooldownPeriodInSeconds { get; init; } = 30;
+	public byte DeliveryConfirmationTimeoutInSeconds { get; init; } = 30;
 }
 
 public sealed record VerifyOtpRequest
@@ -134,4 +135,5 @@ public sealed record SendSmsRequest
 	public string PhoneNumber { get; init; } = "";
 	public string Message { get; init; } = "";
 	public byte ResendCooldownPeriodInSeconds { get; init; } = 30;
+	public byte DeliveryConfirmationTimeoutInSeconds { get; init; } = 30;
 }

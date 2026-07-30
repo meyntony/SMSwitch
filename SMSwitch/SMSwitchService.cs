@@ -44,7 +44,25 @@ namespace SMSwitch
 		private IServiceMobileNumbers ProviderFor(SmsProvider smsProvider) =>
 			_serviceProvider.GetRequiredKeyedService<IServiceMobileNumbers>(smsProvider);
 
-		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
+		// IServiceMobileNumbers is the single-provider contract and carries only the delivery
+		// confirmation timeout, because deduplicating repeated sends is this class's job rather than
+		// a provider's. Implemented explicitly so that the richer overloads above are what ordinary
+		// callers see, with no overload ambiguity. Reached through the interface, the one timeout
+		// serves as both, which is exactly how the single parameter used to behave.
+		Task<SMSwitchResponseSendOTP> IServiceMobileNumbers.SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte deliveryConfirmationTimeoutInSeconds, CancellationToken cancellationToken) =>
+			SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent, deliveryConfirmationTimeoutInSeconds, deliveryConfirmationTimeoutInSeconds, cancellationToken);
+
+		Task<bool> IServiceMobileNumbers.SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte deliveryConfirmationTimeoutInSeconds, CancellationToken cancellationToken) =>
+			SendSMS(mobileWithCountryCode, shortMessageServiceMessage, deliveryConfirmationTimeoutInSeconds, deliveryConfirmationTimeoutInSeconds, cancellationToken);
+
+		/// <param name="resendCooldownPeriodInSeconds">
+		/// How long a repeated send returns the previous result instead of sending again.
+		/// </param>
+		/// <param name="deliveryConfirmationTimeoutInSeconds">
+		/// How long a provider waits for delivery confirmation before giving up. This is what the
+		/// call can block for, so keep it short on an interactive request path.
+		/// </param>
+		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, byte deliveryConfirmationTimeoutInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (!(mobileWithCountryCode?.IsValid() ?? false))
 			{
@@ -96,7 +114,7 @@ namespace SMSwitch
 				responseSendOTP = await ProviderFailover.TrySendThroughQueue(
 					smsProvidersQueue,
 					hasEarlierAttempts: session.SentAttempts.Any(),
-					send: smsProvider => ProviderFor(smsProvider).SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent, resendCooldownPeriodInSeconds, cancellationToken),
+					send: smsProvider => ProviderFor(smsProvider).SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent, deliveryConfirmationTimeoutInSeconds, cancellationToken),
 					succeeded: response => response.IsSent,
 					recordAttempt: (smsProvider, response) => session.SentAttempts.Add(new AttemptDetailsSendOTP(DateTimeOffset.UtcNow, smsProvider, response)));
 
@@ -116,7 +134,15 @@ namespace SMSwitch
 			return responseSendOTP ?? new SMSwitchResponseSendOTP() { IsSent = false };
 		}
 
-		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
+		/// <param name="resendCooldownPeriodInSeconds">
+		/// How long a repeated send of the same message to the same number returns the previous
+		/// result instead of sending again.
+		/// </param>
+		/// <param name="deliveryConfirmationTimeoutInSeconds">
+		/// How long a provider waits for delivery confirmation before giving up. This is what the
+		/// call can block for, so keep it short on an interactive request path.
+		/// </param>
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, byte deliveryConfirmationTimeoutInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (!(mobileWithCountryCode?.IsValid() ?? false))
 			{
@@ -151,7 +177,7 @@ namespace SMSwitch
 				var isSent = await ProviderFailover.TrySendThroughQueue(
 					smsProvidersQueue,
 					hasEarlierAttempts: session.SentAttempts.Any(),
-					send: smsProvider => ProviderFor(smsProvider).SendSMS(mobileWithCountryCode, shortMessageServiceMessage, resendCooldownPeriodInSeconds, cancellationToken),
+					send: smsProvider => ProviderFor(smsProvider).SendSMS(mobileWithCountryCode, shortMessageServiceMessage, deliveryConfirmationTimeoutInSeconds, cancellationToken),
 					succeeded: sent => sent,
 					recordAttempt: (smsProvider, sent) =>
 					{

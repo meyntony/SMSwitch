@@ -198,7 +198,8 @@ the delivery-confirmation polling below can otherwise keep running after the cal
 
 ```csharp
 var sendResponse = await _smSwitch.SendOTP(
-	mobileNumber, preferredLanguages, UserAgent.WebBrowser, resendCooldownPeriodInSeconds: 30, cancellationToken);
+	mobileNumber, preferredLanguages, UserAgent.WebBrowser,
+	resendCooldownPeriodInSeconds: 30, deliveryConfirmationTimeoutInSeconds: 5, cancellationToken);
 ```
 
 #### Reading the verify response
@@ -214,18 +215,24 @@ else if (verifyResponse.Expired)  { /* out of attempts or timed out: start a new
 else                              { /* wrong code, let them try again */ }
 ```
 
-#### `resendCooldownPeriodInSeconds`
+#### Cooldown and delivery timeout
 
-This one parameter does two jobs, and defaults to 60:
+`SendOTP` and `SendSMS` take two separate durations, both defaulting to 60 seconds:
 
-- **Resend cooldown.** A `SendOTP` or `SendSMS` repeated inside this window returns the previous
-  result instead of sending again, so a user hammering "resend" is not billed twice.
-- **Delivery-confirmation timeout.** For plain SMS, and for Plivo OTPs, SMSwitch polls the provider
-  every two seconds until the message is confirmed delivered or this window elapses.
+| Parameter | Controls |
+| --- | --- |
+| `resendCooldownPeriodInSeconds` | How long a repeated send returns the previous result instead of sending again, so a user hammering "resend" is not billed twice. |
+| `deliveryConfirmationTimeoutInSeconds` | How long to wait for the provider to confirm delivery. For plain SMS, and for Plivo OTPs, SMSwitch polls every two seconds until the message is confirmed or this elapses. |
 
-Because of the second job, a call **can block for up to this many seconds** before returning. Keep
-it short for interactive requests, and pass a `CancellationToken` so a client disconnect ends the
-wait.
+Only the second one makes a call block, so it is the one to keep short on an interactive request
+path. Pass a `CancellationToken` as well, so a client disconnect ends the wait rather than letting
+it run to the timeout.
+
+```csharp
+// Don't resend for a minute, but don't hold the request more than 5 seconds waiting for delivery.
+await _smSwitch.SendSMS(mobileNumber, "Your order shipped",
+	resendCooldownPeriodInSeconds: 60, deliveryConfirmationTimeoutInSeconds: 5, cancellationToken);
+```
 
 ## Local testing without real SMS
 
@@ -268,6 +275,18 @@ source-compatible for most callers, but not binary-compatible.
 **API**
 
 - Every method on `SMSwitchService` gained an optional trailing `CancellationToken`.
+- `resendCooldownPeriodInSeconds` has been split in two. It previously set both the resend window
+  and the delivery-confirmation timeout, so shortening it to stop a request blocking also disabled
+  resend deduplication. `SendOTP` and `SendSMS` now take `resendCooldownPeriodInSeconds` and
+  `deliveryConfirmationTimeoutInSeconds` separately, both still defaulting to 60. Existing positional
+  calls such as `SendOTP(number, languages, userAgent, 30)` keep compiling, and 30 still means the
+  cooldown — but the delivery timeout now defaults to 60 rather than following it, so check any call
+  that relied on a short value to bound how long the request could block. A call that also passed a
+  `CancellationToken` positionally will no longer compile, since that argument now lands on the new
+  `byte`; pass it by name or add the timeout.
+- `IServiceMobileNumbers` is the single-provider contract and its parameter is now
+  `deliveryConfirmationTimeoutInSeconds`; it has no resend cooldown, because deduplication is the
+  switchboard's job. `SMSwitchService` still implements the interface, explicitly.
 - `SmsControls.PriorityBasedOnCountryPhoneCode` and `SmsControls.FallBackPriority` are now
   `List<SmsProvider>` instead of `HashSet<SmsProvider>`. They are ordered priorities, and a set
   guaranteed neither the order nor the ability to repeat a provider.

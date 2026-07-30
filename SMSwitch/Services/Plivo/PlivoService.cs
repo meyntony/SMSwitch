@@ -28,7 +28,7 @@ namespace SMSwitch.Services.Plivo
 			"da");
 
 
-		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
+		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte deliveryConfirmationTimeoutInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (_plivoInitializer.PlivoApi is null || _plivoInitializer.PlivoSettings is null)
 				return new SMSwitchResponseSendOTP() { IsSent = false };
@@ -51,7 +51,7 @@ namespace SMSwitch.Services.Plivo
 				bool isSent = false;
 				if (IsSuccessStatusCode(verifySessionResponse.StatusCode))
 				{
-					isSent = await _plivoDbService.KeepCheckingTheDatabaseIfSentEvery2seconds(verifySessionResponse.SessionUUID, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds), cancellationToken);
+					isSent = await _plivoDbService.KeepCheckingTheDatabaseIfSentEvery2seconds(verifySessionResponse.SessionUUID, expiry: DateTimeOffset.UtcNow.AddSeconds(deliveryConfirmationTimeoutInSeconds), cancellationToken);
 				}
 				return new SMSwitchResponseSendOTP()
 				{
@@ -69,7 +69,7 @@ namespace SMSwitch.Services.Plivo
 			}
 		}
 
-		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte deliveryConfirmationTimeoutInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (_plivoInitializer.PlivoApi is null || _plivoInitializer.PlivoSettings is null)
 				return false;
@@ -92,7 +92,7 @@ namespace SMSwitch.Services.Plivo
 				if (response != null && response.MessageUuid.Any())
 				{
 					var messageUuid = response.MessageUuid.First();
-					return await KeepCheckingIfSentEvery2seconds(messageUuid, expiry: DateTimeOffset.UtcNow.AddSeconds(resendCooldownPeriodInSeconds), cancellationToken);
+					return await KeepCheckingIfSentEvery2seconds(messageUuid, expiry: DateTimeOffset.UtcNow.AddSeconds(deliveryConfirmationTimeoutInSeconds), cancellationToken);
 				}
 
 				_logger.LogWarning("Failed to send SMS to {ToNumber}. Response: {Response}",
