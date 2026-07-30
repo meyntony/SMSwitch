@@ -1,0 +1,33 @@
+# Indentation in this repository is tabs. That was already true of roughly 90% of the existing
+# lines; this file records the convention rather than introducing a new one.
+root = true
+
+[*]
+trim_trailing_whitespace = true
+insert_final_newline = true
+indent_style = tab
+indent_size = 4
+
+[*.{yml,yaml,json,md}]
+indent_style = space
+indent_size = 2
+
+# Markdown uses trailing double-space for hard line breaks.
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{csproj,props,targets,sln}]
+indent_style = space
+indent_size = 2
+
+[*.cs]
+indent_style = tab
+indent_size = 4
+# These files are BOM-prefixed already, which is what Visual Studio writes. Declaring plain utf-8
+# here would strip the BOM from every file and bury the formatting change in encoding noise.
+charset = utf-8-bom
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+dotnet_sort_system_directives_first = true

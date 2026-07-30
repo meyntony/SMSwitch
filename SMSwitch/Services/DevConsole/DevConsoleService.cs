@@ -1,4 +1,4 @@
-using HumanLanguages;
+﻿using HumanLanguages;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MongoDbTokenManager;

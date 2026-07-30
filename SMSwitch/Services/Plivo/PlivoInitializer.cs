@@ -16,7 +16,7 @@ namespace SMSwitch.Services.Plivo
 		public PlivoInitializer(
 			IConfiguration configuration,
 			SettingsService settingsService,
-			ILogger<PlivoInitializer> logger): base(configuration)
+			ILogger<PlivoInitializer> logger) : base(configuration)
 		{
 			_settingsService = settingsService;
 			try
@@ -48,7 +48,7 @@ namespace SMSwitch.Services.Plivo
 			{
 				logger.LogError(ex, "Unable to initialize Plivo");
 			}
-			
+
 		}
 
 		/// <summary>

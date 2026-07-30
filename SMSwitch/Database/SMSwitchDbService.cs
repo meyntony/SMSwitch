@@ -28,7 +28,7 @@ namespace SMSwitch.Database
 		private static readonly TimeSpan SessionRetentionAfterExpiry = TimeSpan.FromDays(30);
 		public SMSwitchDbService(
 			MongoService mongoService,
-			SMSwitchInitializer smSwitchInitializer) 
+			SMSwitchInitializer smSwitchInitializer)
 		{
 			_smSwitchInitializer = smSwitchInitializer;
 

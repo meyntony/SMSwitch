@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace SMSwitch.Common
@@ -9,7 +9,8 @@ namespace SMSwitch.Common
 		public SMSwitchInitializer(IConfiguration configuration, ILogger<SMSwitchInitializer> logger)
 		{
 			var smsControlsConfig = configuration.GetSection("SMSwitchSettings:Controls");
-			SmsControls = new SmsControls() {
+			SmsControls = new SmsControls()
+			{
 				MaximumFailedAttemptsToVerify = byte.TryParse(smsControlsConfig["MaximumFailedAttemptsToVerify"], out byte maximumFailedAttemptsToVerify) ? maximumFailedAttemptsToVerify : (byte)3,
 				SessionTimeoutInSeconds = int.TryParse(smsControlsConfig["SessionTimeoutInSeconds"], out int sessionTimeoutInSeconds) ? sessionTimeoutInSeconds : 240,
 				MaxRoundRobinAttempts = byte.TryParse(smsControlsConfig["MaxRoundRobinAttempts"], out byte maxRoundRobinAttempts) ? maxRoundRobinAttempts : (byte)1,

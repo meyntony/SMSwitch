@@ -41,7 +41,7 @@ namespace SMSwitch.Services.Plivo
 				var verifySessionResponse = _plivoInitializer.PlivoApi.VerifySession.Create(
 					recipient: mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber,
 					app_uuid: _plivoInitializer.PlivoSettings.PlivoPrivateSettings.AppUuid,
-					url: _plivoInitializer.NotificationUrl ,
+					url: _plivoInitializer.NotificationUrl,
 					method: "GET",
 					channel: "sms",
 					locale: preferredLocale);
@@ -59,7 +59,7 @@ namespace SMSwitch.Services.Plivo
 					OtpLength = _plivoInitializer.PlivoSettings.OtpLength
 				};
 			}
-			catch(Exception exception)
+			catch (Exception exception)
 			{
 				_logger.LogError(exception, "Could not send OTP to +{MobileNumber} in {preferredLocale}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber, preferredLocale);
 				return new SMSwitchResponseSendOTP()
@@ -169,11 +169,12 @@ namespace SMSwitch.Services.Plivo
 				}
 				_logger.LogInformation("Plivo rejected the OTP for +{MobileNumber}: status {StatusCode} {Message}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber, response?.StatusCode, response?.Message);
 			}
-			catch(Exception exception)
+			catch (Exception exception)
 			{
 				_logger.LogError(exception, "Could not verify OTP for +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
 			}
-			return new SMSwitchResponseVerifyOTP(){
+			return new SMSwitchResponseVerifyOTP()
+			{
 				Verified = false
 			};
 		}

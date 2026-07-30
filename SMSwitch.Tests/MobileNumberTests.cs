@@ -1,4 +1,4 @@
-using SMSwitch.Common.DTOs;
+﻿using SMSwitch.Common.DTOs;
 
 namespace SMSwitch.Tests
 {

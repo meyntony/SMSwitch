@@ -1,4 +1,4 @@
-using HumanLanguages;
+﻿using HumanLanguages;
 
 namespace SMSwitch.Common
 {

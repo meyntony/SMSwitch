@@ -108,12 +108,12 @@ namespace SMSwitch
 					_logger.LogError("Unable to send OTP to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
 				}
 			}
-			catch (Exception exception) 
+			catch (Exception exception)
 			{
 				_logger.LogError(exception, "Unable to send OTP to {PhoneNumber} with SessionId: {SessionId}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, session?.SessionId);
 			}
-			
-			return responseSendOTP ?? new SMSwitchResponseSendOTP() { IsSent = false }; 
+
+			return responseSendOTP ?? new SMSwitchResponseSendOTP() { IsSent = false };
 		}
 
 		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
@@ -257,7 +257,8 @@ namespace SMSwitch
 				_logger.LogError(exception, "Unable to verify OTP for {PhoneNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
 			}
 
-			return new SMSwitchResponseVerifyOTP() {
+			return new SMSwitchResponseVerifyOTP()
+			{
 				Verified = false,
 				Expired = true
 			};

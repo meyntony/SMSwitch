@@ -7,15 +7,16 @@ using Twilio.Types;
 
 namespace SMSwitch.Services.Twilio
 {
-	public sealed class TwilioInitializer: SMSwitchGeneralInitializer
+	public sealed class TwilioInitializer : SMSwitchGeneralInitializer
 	{
 		internal readonly TwilioSettings? TwilioSettings;
 		public TwilioInitializer(
 			IConfiguration configuration,
 			ILogger<TwilioInitializer> logger) : base(configuration)
 		{
-			try {
-				
+			try
+			{
+
 				var twilioConfig = SMSwitchSettings.GetSection(SmsProvider.Twilio.ToString());
 
 				var accountSid = twilioConfig["AccountSid"];
@@ -62,7 +63,8 @@ namespace SMSwitch.Services.Twilio
 					TaskContinuationOptions.OnlyOnFaulted);
 
 				TwilioSettings = twilioSettings;
-			} catch (Exception ex)
+			}
+			catch (Exception ex)
 			{
 				logger.LogError(ex, "Unable to initialize Twilio");
 			}

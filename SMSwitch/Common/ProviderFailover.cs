@@ -1,4 +1,4 @@
-namespace SMSwitch.Common
+﻿namespace SMSwitch.Common
 {
 	/// <summary>
 	/// The provider failover mechanics, which SendOTP and SendSMS previously each carried their own

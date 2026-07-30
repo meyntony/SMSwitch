@@ -9,24 +9,24 @@ using Twilio.Types;
 namespace SMSwitch.Services.Twilio
 {
 	public sealed class TwilioService : IServiceMobileNumbers
-    {
-        private readonly TwilioInitializer _twilioInitializer;
+	{
+		private readonly TwilioInitializer _twilioInitializer;
 		private readonly ILogger<TwilioService> _logger;
 
 
 
-        public TwilioService(TwilioInitializer twilioInitializer, ILogger<TwilioService> logger)
-        {
-            _logger = logger;
-            _twilioInitializer = twilioInitializer;
-            
-        }
+		public TwilioService(TwilioInitializer twilioInitializer, ILogger<TwilioService> logger)
+		{
+			_logger = logger;
+			_twilioInitializer = twilioInitializer;
+
+		}
 		/// <summary>
 		/// //https://www.twilio.com/docs/verify/supported-languages#verify-default-template
 		/// These are the supported language ISO codes as of 13-July-2024
 		/// </summary>
 		private static readonly SupportedLocales _supportedLocalesForVerifyDefaultTemplate = new(
-            "af",
+			"af",
 			"ar",
 			"ca",
 			"zh",
@@ -70,40 +70,42 @@ namespace SMSwitch.Services.Twilio
 			"zh-HK");
 
 		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
-        {
+		{
 			if (_twilioInitializer.TwilioSettings is null)
 				return new SMSwitchResponseSendOTP() { IsSent = false };
 
-            var locale = _supportedLocalesForVerifyDefaultTemplate.Resolve(preferredLanguageIsoCodeList);
+			var locale = _supportedLocalesForVerifyDefaultTemplate.Resolve(preferredLanguageIsoCodeList);
 
-            try
-            {
-                var verificationMessage = await VerificationResource.CreateAsync(
-                    to: $"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}",
-                    channel: "sms",
-                    locale: locale,
-                    pathServiceSid: _twilioInitializer.TwilioSettings.TwilioPrivateSettings.ServiceSid,
-                    appHash: userAgent == UserAgent.Android ? _twilioInitializer.TwilioSettings.AndroidAppHash : null
+			try
+			{
+				var verificationMessage = await VerificationResource.CreateAsync(
+					to: $"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}",
+					channel: "sms",
+					locale: locale,
+					pathServiceSid: _twilioInitializer.TwilioSettings.TwilioPrivateSettings.ServiceSid,
+					appHash: userAgent == UserAgent.Android ? _twilioInitializer.TwilioSettings.AndroidAppHash : null
 				);
 
 
 				var isSent = !string.IsNullOrWhiteSpace(verificationMessage?.Sid);
 
-				return new SMSwitchResponseSendOTP() { 
-                    IsSent = isSent,
-                    OtpLength = isSent ? _twilioInitializer.TwilioSettings.OtpLength : (byte)0
+				return new SMSwitchResponseSendOTP()
+				{
+					IsSent = isSent,
+					OtpLength = isSent ? _twilioInitializer.TwilioSettings.OtpLength : (byte)0
 				};
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception, "Could not send OTP to +{MobileNumber} in {locale}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, locale);
-                return new SMSwitchResponseSendOTP() {
-                    IsSent = false
-                };
-            }
-        }
+			}
+			catch (Exception exception)
+			{
+				_logger.LogError(exception, "Could not send OTP to +{MobileNumber} in {locale}", mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber, locale);
+				return new SMSwitchResponseSendOTP()
+				{
+					IsSent = false
+				};
+			}
+		}
 
-	
+
 
 		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
 		{
@@ -167,37 +169,38 @@ namespace SMSwitch.Services.Twilio
 		}
 
 		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP, CancellationToken cancellationToken = default)
-        {
+		{
 			if (_twilioInitializer.TwilioSettings is null)
 				return new SMSwitchResponseVerifyOTP() { Verified = false };
 
-            bool verified = false;
-            try
-            {
-                var verification = await VerificationCheckResource.CreateAsync(
-                    to: $"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}",
-                    code: OTP,
-                    pathServiceSid: _twilioInitializer.TwilioSettings.TwilioPrivateSettings.ServiceSid
-                );
-                verified = string.Equals(verification?.Status, "approved", StringComparison.OrdinalIgnoreCase);
+			bool verified = false;
+			try
+			{
+				var verification = await VerificationCheckResource.CreateAsync(
+					to: $"+{mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber}",
+					code: OTP,
+					pathServiceSid: _twilioInitializer.TwilioSettings.TwilioPrivateSettings.ServiceSid
+				);
+				verified = string.Equals(verification?.Status, "approved", StringComparison.OrdinalIgnoreCase);
 
-                if (!verified)
-                {
+				if (!verified)
+				{
 					_logger.LogInformation("Verification Status: {Status} for +{MobileNumber}", verification?.Status, mobileWithCountryCode?.CountryPhoneCodeAndPhoneNumber);
 				}
-            }
-            catch (Exception exception)
-            {
+			}
+			catch (Exception exception)
+			{
 				_logger.LogError(exception, "Could not verify OTP for +{MobileNumber}", mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber);
 				return new SMSwitchResponseVerifyOTP()
 				{
 					Verified = verified,
-                    Expired = true
+					Expired = true
 				};
 			}
-            return new SMSwitchResponseVerifyOTP() {
-                Verified = verified
-            };
-        }
-    }
+			return new SMSwitchResponseVerifyOTP()
+			{
+				Verified = verified
+			};
+		}
+	}
 }

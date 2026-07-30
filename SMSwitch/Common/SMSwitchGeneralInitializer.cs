@@ -14,7 +14,7 @@ namespace SMSwitch.Common
 			var otpLength = byte.TryParse(SMSwitchSettings["OtpLength"], out byte l) ? l : defaultLength;
 			var androidAppHash = SMSwitchSettings["AndroidAppHash"];
 
-			SMSwitchGeneralSettings = new SMSwitchGeneralSettings() 
+			SMSwitchGeneralSettings = new SMSwitchGeneralSettings()
 			{
 				AndroidAppHash = androidAppHash,
 				OtpLength = otpLength
