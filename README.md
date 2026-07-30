@@ -202,6 +202,30 @@ var sendResponse = await _smSwitch.SendOTP(
 	resendCooldownPeriodInSeconds: 30, deliveryConfirmationTimeoutInSeconds: 5, cancellationToken);
 ```
 
+#### Phone number formats
+
+`MobileNumber` takes the country phone code and the national number separately, and strips anything
+that is not a digit from both. All of these describe the same Danish number:
+
+```csharp
+new MobileNumber { CountryIsoCodeString = "DK", CountryPhoneCode = "45",   PhoneNumber = "12345678"    }
+new MobileNumber { CountryIsoCodeString = "DK", CountryPhoneCode = "+45",  PhoneNumber = "12 34 56 78" }
+new MobileNumber { CountryIsoCodeString = "DK", CountryPhoneCode = "(+45)", PhoneNumber = "12-34-56-78" }
+```
+
+Two things to know:
+
+- **Leading zeros are kept.** A number written with a national trunk zero, such as `0612345678`,
+  keeps that zero. Strip it yourself if the destination expects the number without it — SMSwitch
+  will not guess.
+- **Call `IsValid()` before sending** if the number came from user input. It returns false when
+  either part contains no digits at all. SMSwitch also checks internally and returns a failed
+  response rather than throwing, but checking first lets you show a useful validation message
+  instead of a failed send.
+
+`CountryIsoCodeString` is ISO 3166-1 alpha-2 and is case-insensitive; it is used to record the
+observed number length against the country, not to route the message.
+
 #### Reading the verify response
 
 **Check `Verified` before `Expired`.** `Expired` means "this session can no longer be used", and a
