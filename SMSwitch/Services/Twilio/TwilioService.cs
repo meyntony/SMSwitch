@@ -25,8 +25,8 @@ namespace SMSwitch.Services.Twilio
 		/// //https://www.twilio.com/docs/verify/supported-languages#verify-default-template
 		/// These are the supported language ISO codes as of 13-July-2024
 		/// </summary>
-		private static readonly HashSet<string> _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate =
-            ["af",
+		private static readonly SupportedLocales _supportedLocalesForVerifyDefaultTemplate = new(
+            "af",
 			"ar",
 			"ca",
 			"zh",
@@ -67,31 +67,14 @@ namespace SMSwitch.Services.Twilio
 			"vi",
 			"pt-BR",
 			"zh-CN",
-			"zh-HK"];
-
-        // Built once. As expression-bodied properties these reallocated the set and re-parsed every
-        // ISO code on each access, several times per SendOTP.
-        private static readonly HashSet<LanguageIsoCode> _supportedLanguageIsoCodesForVerifyDefaultTemplate = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Select(isoCodeString => HumanHelper.CreateLanguageIsoCode(isoCodeString)).ToHashSet();
-
-        private static readonly HashSet<LanguageId> _supportedLanguageIdsForVerifyDefaultTemplate = _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).ToHashSet();
+			"zh-HK");
 
 		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
         {
 			if (_twilioInitializer.TwilioSettings is null)
 				return new SMSwitchResponseSendOTP() { IsSent = false };
 
-            var locale = preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Contains(l))?.ToIsoCodeString()
-				??
-				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIdsForVerifyDefaultTemplate.Contains(l.LanguageId))?.ToIsoCodeString()
-				??
-				"en";
-
-			if (!_supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Contains(locale))
-			{
-				var localeAsLanguageIsoCode = HumanHelper.CreateLanguageIsoCode(locale);
-				locale = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.FirstOrDefault(isoCode => isoCode == localeAsLanguageIsoCode.ToIsoCodeString('-') 
-				|| isoCode == localeAsLanguageIsoCode.LanguageId.ToString()) ?? "en";
-			}
+            var locale = _supportedLocalesForVerifyDefaultTemplate.Resolve(preferredLanguageIsoCodeList);
 
             try
             {

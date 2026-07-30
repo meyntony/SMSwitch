@@ -80,25 +80,10 @@ namespace SMSwitch
 					}
 				}
 
-				Queue<SmsProvider>? smsProvidersQueue = null;
-				if (session.SmsProvidersQueue?.Any() ?? false)
-				{
-					smsProvidersQueue = session.SmsProvidersQueue;
-				}
-				else
-				{
-					smsProvidersQueue = new();
-					var smsProviders = _smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out var configuredProviders)
-							? configuredProviders
-							: _smSwitchInitializer.SmsControls.FallBackPriority;
-					for (int i = 0; i < _smSwitchInitializer.SmsControls.MaxRoundRobinAttempts; i++)
-					{
-						foreach (SmsProvider smsProvider in smsProviders)
-						{
-							smsProvidersQueue.Enqueue(smsProvider);
-						}
-					}
-				}
+				var smsProvidersQueue = ProviderFailover.BuildQueue(
+					_smSwitchInitializer.SmsControls,
+					mobileWithCountryCode.CountryPhoneCodeAsNumericString,
+					session.SmsProvidersQueue);
 
 				if (smsProvidersQueue.Count == 0)
 				{
@@ -108,25 +93,12 @@ namespace SMSwitch
 					};
 				}
 
-				while (smsProvidersQueue.Any())
-				{
-					if (session.SentAttempts.Any())
-					{
-						smsProvidersQueue.Dequeue();
-						if (!smsProvidersQueue.Any())
-						{
-							break;
-						}
-					}
-					responseSendOTP = await ProviderFor(smsProvidersQueue.Peek())
-						.SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent, resendCooldownPeriodInSeconds, cancellationToken);
-
-					session.SentAttempts.Add(new AttemptDetailsSendOTP(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), responseSendOTP));
-					if (responseSendOTP.IsSent)
-					{
-						break;
-					}
-				}
+				responseSendOTP = await ProviderFailover.TrySendThroughQueue(
+					smsProvidersQueue,
+					hasEarlierAttempts: session.SentAttempts.Any(),
+					send: smsProvider => ProviderFor(smsProvider).SendOTP(mobileWithCountryCode, preferredLanguageIsoCodeList, userAgent, resendCooldownPeriodInSeconds, cancellationToken),
+					succeeded: response => response.IsSent,
+					recordAttempt: (smsProvider, response) => session.SentAttempts.Add(new AttemptDetailsSendOTP(DateTimeOffset.UtcNow, smsProvider, response)));
 
 				session.SmsProvidersQueue = smsProvidersQueue;
 				await _smSwitchDbService.UpdateSession(session, cancellationToken);
@@ -166,56 +138,33 @@ namespace SMSwitch
 					}
 				}
 
-				Queue<SmsProvider>? smsProvidersQueue = null;
-				if (session.SmsProvidersQueue?.Any() ?? false)
-				{
-					smsProvidersQueue = session.SmsProvidersQueue;
-				}
-				else
-				{
-					smsProvidersQueue = new();
-					var smsProviders = _smSwitchInitializer.SmsControls.PriorityBasedOnCountryPhoneCode.TryGetValue(mobileWithCountryCode.CountryPhoneCodeAsNumericString, out var configuredProviders)
-							? configuredProviders
-							: _smSwitchInitializer.SmsControls.FallBackPriority;
-					for (int i = 0; i < _smSwitchInitializer.SmsControls.MaxRoundRobinAttempts; i++)
-					{
-						foreach (SmsProvider smsProvider in smsProviders)
-						{
-							smsProvidersQueue.Enqueue(smsProvider);
-						}
-					}
-				}
+				var smsProvidersQueue = ProviderFailover.BuildQueue(
+					_smSwitchInitializer.SmsControls,
+					mobileWithCountryCode.CountryPhoneCodeAsNumericString,
+					session.SmsProvidersQueue);
 
 				if (smsProvidersQueue.Count == 0)
 				{
 					return false;
 				}
 
-				bool isSent = false;
-				while (smsProvidersQueue.Any())
-				{
-					if (session.SentAttempts.Any())
+				var isSent = await ProviderFailover.TrySendThroughQueue(
+					smsProvidersQueue,
+					hasEarlierAttempts: session.SentAttempts.Any(),
+					send: smsProvider => ProviderFor(smsProvider).SendSMS(mobileWithCountryCode, shortMessageServiceMessage, resendCooldownPeriodInSeconds, cancellationToken),
+					succeeded: sent => sent,
+					recordAttempt: (smsProvider, sent) =>
 					{
-						smsProvidersQueue.Dequeue();
-						if (!smsProvidersQueue.Any())
+						session.SentAttempts.Add(new AttemptDetailsSendSMS(DateTimeOffset.UtcNow, smsProvider, sent));
+						if (sent)
 						{
-							break;
+							session.SuccessfullySentTimestampUTC = DateTimeOffset.UtcNow;
 						}
-					}
-					isSent = await ProviderFor(smsProvidersQueue.Peek())
-						.SendSMS(mobileWithCountryCode, shortMessageServiceMessage, resendCooldownPeriodInSeconds, cancellationToken);
-
-					session.SentAttempts.Add(new AttemptDetailsSendSMS(DateTimeOffset.UtcNow, smsProvidersQueue.Peek(), isSent));
-					if (isSent)
-					{
-						session.SuccessfullySentTimestampUTC = DateTimeOffset.UtcNow;
-						break;
-					}
-					else
-					{
-						session.FailedAttemptsDateTimeOffset.Add(DateTimeOffset.UtcNow);
-					}
-				}
+						else
+						{
+							session.FailedAttemptsDateTimeOffset.Add(DateTimeOffset.UtcNow);
+						}
+					});
 
 				session.SmsProvidersQueue = smsProvidersQueue;
 				await _smSwitchDbService.UpdateSendSMSSession(session, cancellationToken);

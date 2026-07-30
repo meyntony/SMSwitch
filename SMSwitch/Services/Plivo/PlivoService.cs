@@ -23,14 +23,9 @@ namespace SMSwitch.Services.Plivo
 		/// Plivo support said we need to contact them to add more translations of their SMS template in different languages
 		/// I contacted them and added da for Danish
 		/// </summary>
-		private static readonly HashSet<string> _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate =
-			["en",
-			"da"];
-		// Built once. As expression-bodied properties these reallocated the set and re-parsed every
-		// ISO code on each access, several times per SendOTP.
-		private static readonly HashSet<LanguageIsoCode> _supportedLanguageIsoCodesForVerifyDefaultTemplate = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Select(isoCodeString => HumanHelper.CreateLanguageIsoCode(isoCodeString)).ToHashSet();
-
-		private static readonly HashSet<LanguageId> _supportedLanguageIdsForVerifyDefaultTemplate = _supportedLanguageIsoCodesForVerifyDefaultTemplate.Select(isoCode => isoCode.LanguageId).ToHashSet();
+		private static readonly SupportedLocales _supportedLocalesForVerifyDefaultTemplate = new(
+			"en",
+			"da");
 
 
 		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60, CancellationToken cancellationToken = default)
@@ -41,18 +36,7 @@ namespace SMSwitch.Services.Plivo
 			string preferredLocale = "en";
 			try
 			{
-				preferredLocale = preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIsoCodesForVerifyDefaultTemplate.Contains(l))?.ToIsoCodeString()
-				??
-				preferredLanguageIsoCodeList.FirstOrDefault(l => _supportedLanguageIdsForVerifyDefaultTemplate.Contains(l.LanguageId))?.ToIsoCodeString()
-				??
-				"en";
-
-				if (!_supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.Contains(preferredLocale))
-				{
-					var localeAsLanguageIsoCode = HumanHelper.CreateLanguageIsoCode(preferredLocale);
-					preferredLocale = _supportedLanguageIsoCodeStringsForVerifyDefaultTemplate.FirstOrDefault(isoCode => isoCode == localeAsLanguageIsoCode.ToIsoCodeString('-')
-					|| isoCode == localeAsLanguageIsoCode.LanguageId.ToString()) ?? "en";
-				}
+				preferredLocale = _supportedLocalesForVerifyDefaultTemplate.Resolve(preferredLanguageIsoCodeList);
 
 				var verifySessionResponse = _plivoInitializer.PlivoApi.VerifySession.Create(
 					recipient: mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber,
