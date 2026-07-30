@@ -88,11 +88,10 @@ namespace SMSwitch.Services.DevConsole
 			try
 			{
 				TokenIdentifier tokenIdentifier = mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber;
-				var verified = await _mongoDbTokenService.Validate(tokenIdentifier, OTP);
-				if (verified)
-				{
-					await _mongoDbTokenService.Consume(tokenIdentifier);
-				}
+				// Validate followed by Consume was two round trips, so two concurrent verifies
+				// of the same correct OTP could both succeed. ConsumeAndValidate claims the
+				// token in one atomic operation and leaves it alone when the guess is wrong.
+				var verified = await _mongoDbTokenService.ConsumeAndValidate(tokenIdentifier, OTP);
 				return new SMSwitchResponseVerifyOTP()
 				{
 					Verified = verified
