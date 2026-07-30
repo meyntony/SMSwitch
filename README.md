@@ -82,17 +82,33 @@ Add the following to your `appsettings.json` and adjust the values (keep real cr
 }
 ```
 
-| Setting | Meaning |
-| --- | --- |
-| `SupportedCountriesIsoCodes` | Countries marked as supported in the country database. Empty list means all countries are supported. |
-| `Controls:MaximumFailedAttemptsToVerify` | Failed verification attempts before a session expires (default 3). |
-| `Controls:SessionTimeoutInSeconds` | Lifetime of an OTP session (default 240). |
-| `Controls:MaxRoundRobinAttempts` | How many times the provider priority list is repeated in the retry queue (default 1). |
-| `Controls:PriorityBasedOnCountryPhoneCode` | Provider order per country phone code. |
-| `Controls:FallBackPriority` | Provider order for phone codes not listed above. Required. |
-| `AndroidAppHash` | Your Android app hash for SMS Retriever auto-read. |
-| `OtpLength` | OTP digit count. Applied to Twilio; Plivo is fixed at 6 (a warning is logged if they differ). |
-| `Plivo:SourceNumber` | Sender number for plain SMS via Plivo (not needed for OTPs). |
+| Setting | Required | Meaning |
+| --- | --- | --- |
+| `SupportedCountriesIsoCodes` | **Yes** | Countries marked as supported in the country database. An empty array means all countries are supported, but the key itself must be present. |
+| `Controls:PriorityBasedOnCountryPhoneCode` | **Yes** | Provider order per country phone code. May be an empty object, but the key must be present. |
+| `Controls:FallBackPriority` | **Yes** | Provider order for phone codes not listed above. Must name at least one known provider. |
+| `Controls:MaximumFailedAttemptsToVerify` | No | Failed verification attempts before a session expires (default 3). |
+| `Controls:SessionTimeoutInSeconds` | No | Lifetime of an OTP session (default 240). |
+| `Controls:MaxRoundRobinAttempts` | No | How many times the provider priority list is repeated in the retry queue (default 1). |
+| `AndroidAppHash` | No | Your Android app hash for SMS Retriever auto-read. |
+| `OtpLength` | No | OTP digit count. Applied to Twilio; Plivo is fixed at 6 (a warning is logged if they differ). |
+| `Plivo:SourceNumber` | For plain SMS | Sender number for plain SMS via Plivo. Not needed for OTPs. |
+
+#### Configuration errors fail at startup, not at send time
+
+The three required keys above are read eagerly, so a missing one throws while the host is being
+built rather than on the first send. Two cases are worth knowing about because the message is not
+especially friendly:
+
+- Omitting `SupportedCountriesIsoCodes` or `Controls:PriorityBasedOnCountryPhoneCode` throws
+  `InvalidOperationException` naming the missing section.
+- An unrecognised country code in `SupportedCountriesIsoCodes` throws `ArgumentException` from the
+  enum parse. Codes are ISO 3166-1 alpha-2, for example `DK`, not `DNK` or `Denmark`.
+
+An unrecognised **provider** name is treated more leniently: the offending entry is dropped with a
+logged warning and that country falls back to `FallBackPriority`, rather than bringing the
+application down. `FallBackPriority` itself is the exception — if nothing in it parses, that does
+throw, since there would be no provider left to send with.
 
 The delivery-notification webhook authenticates callers using Plivo's own request signature
 (`X-Plivo-Signature-V3`), checked against your `Plivo:AuthToken`. There is nothing extra to
