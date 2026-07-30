@@ -2,7 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/SMSwitch.svg)](https://www.nuget.org/packages/SMSwitch)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/SMSwitch.svg)](https://www.nuget.org/packages/SMSwitch)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
 
 **SMSwitch** is an open-source C# class library that acts as a switchboard in front of multiple SMS providers. It sends one-time passwords (OTPs) and plain SMS messages through **Twilio** or **Plivo**, choosing the provider per destination country and automatically failing over to the next provider when one fails. All sessions and attempts are stored in your own MongoDB instance for auditing.
 
@@ -190,6 +190,11 @@ We welcome contributions! If you find a bug or have an idea for an improvement, 
 
 ## License
 
-This project is licensed under the [GNU General Public License v3.0](LICENSE).
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+Note that this is the **Affero** GPL, not the plain GPL. Section 13 additionally requires that if you
+run a modified version of SMSwitch to provide a service over a network, you offer the users of that
+service the corresponding source of your modified version. Using SMSwitch unmodified does not
+trigger that obligation.
 
 Happy coding! 🚀🌐📚
