@@ -125,6 +125,8 @@ logged warning and that country falls back to `FallBackPriority`, rather than br
 application down. `FallBackPriority` itself is the exception — if nothing in it parses, that does
 throw, since there would be no provider left to send with.
 
+#### Webhook authentication
+
 The delivery-notification webhook authenticates callers using Plivo's own request signature
 (`X-Plivo-Signature-V3`), checked against your `Plivo:AuthToken`. There is nothing extra to
 configure, and no secret travels in the callback URL. The webhook fails closed: if Plivo is not
