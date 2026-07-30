@@ -9,6 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- HasNotExpired and the session DB helpers are internal, and they are exactly the logic the
+         tests need to pin down. -->
+    <InternalsVisibleTo Include="SMSwitch.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- This library exposes ASP.NET Core types (WebApplication, RouteGroupBuilder,
          IWebHostEnvironment), so it needs the shared framework. Previously these came in
          only as a side effect of the Microsoft.AspNetCore.OpenApi package reference, whose
