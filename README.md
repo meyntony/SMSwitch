@@ -170,9 +170,8 @@ public sealed class SignInFlow
 		var sendResponse = await _smSwitch.SendOTP(mobileNumber, preferredLanguages, UserAgent.WebBrowser);
 		// sendResponse.IsSent, sendResponse.OtpLength
 
-		// Later, verify the OTP the user typed in
+		// Later, verify the OTP the user typed in. Check Verified first, see below.
 		var verifyResponse = await _smSwitch.VerifyOTP(mobileNumber, "123456");
-		// verifyResponse.Verified, verifyResponse.Expired
 
 		// Or send a plain SMS
 		var smsSent = await _smSwitch.SendSMS(mobileNumber, "Hello from SMSwitch!");
@@ -181,6 +180,40 @@ public sealed class SignInFlow
 	}
 }
 ```
+
+Every method takes an optional `CancellationToken` as its last parameter. Passing one is worth it:
+the delivery-confirmation polling below can otherwise keep running after the caller has gone away.
+
+```csharp
+var sendResponse = await _smSwitch.SendOTP(
+	mobileNumber, preferredLanguages, UserAgent.WebBrowser, resendCooldownPeriodInSeconds: 30, cancellationToken);
+```
+
+#### Reading the verify response
+
+**Check `Verified` before `Expired`.** `Expired` means "this session can no longer be used", and a
+successful verification consumes the session, so `Expired` is `true` on success as well as on
+failure. Branching on `Expired` first will send a user who just entered the right code back to the
+start of the flow.
+
+```csharp
+if (verifyResponse.Verified)      { /* signed in */ }
+else if (verifyResponse.Expired)  { /* out of attempts or timed out: start a new SendOTP */ }
+else                              { /* wrong code, let them try again */ }
+```
+
+#### `resendCooldownPeriodInSeconds`
+
+This one parameter does two jobs, and defaults to 60:
+
+- **Resend cooldown.** A `SendOTP` or `SendSMS` repeated inside this window returns the previous
+  result instead of sending again, so a user hammering "resend" is not billed twice.
+- **Delivery-confirmation timeout.** For plain SMS, and for Plivo OTPs, SMSwitch polls the provider
+  every two seconds until the message is confirmed delivered or this window elapses.
+
+Because of the second job, a call **can block for up to this many seconds** before returning. Keep
+it short for interactive requests, and pass a `CancellationToken` so a client disconnect ends the
+wait.
 
 ## Local testing without real SMS
 
