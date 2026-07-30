@@ -33,6 +33,11 @@ dotnet add package SMSwitch
 
 ### 2. Prerequisites
 
+| Requirement | Version | Why |
+| --- | --- | --- |
+| .NET | 10.0 | The package targets `net10.0` and references the ASP.NET Core shared framework, so it needs an ASP.NET Core host. |
+| MongoDB | 4.2 or newer | Session cleanup uses a TTL index, and country feedback uses an aggregation-pipeline update, which 4.2 introduced. |
+
 SMSwitch builds on two companion packages that are installed automatically but need configuration:
 
 - [MongoDbService](https://www.nuget.org/packages/MongoDbService) — provides the MongoDB connection. Requires a `MongoDbSettings` section (connection string + database name).
