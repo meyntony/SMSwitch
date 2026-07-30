@@ -1,4 +1,4 @@
-using HumanLanguages;
+﻿using HumanLanguages;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MongoDbTokenManager;
@@ -36,7 +36,7 @@ namespace SMSwitch.Services.DevConsole
 			_logger = logger;
 		}
 
-		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte resendCooldownPeriodInSeconds = 60)
+		public async Task<SMSwitchResponseSendOTP> SendOTP(MobileNumber mobileWithCountryCode, HashSet<LanguageIsoCode> preferredLanguageIsoCodeList, UserAgent userAgent, byte deliveryConfirmationTimeoutInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (RefusedInProduction("send OTP", mobileWithCountryCode))
 			{
@@ -69,7 +69,7 @@ namespace SMSwitch.Services.DevConsole
 			}
 		}
 
-		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte resendCooldownPeriodInSeconds = 60)
+		public async Task<bool> SendSMS(MobileNumber mobileWithCountryCode, string shortMessageServiceMessage, byte deliveryConfirmationTimeoutInSeconds = 60, CancellationToken cancellationToken = default)
 		{
 			if (RefusedInProduction("send SMS", mobileWithCountryCode))
 			{
@@ -79,7 +79,7 @@ namespace SMSwitch.Services.DevConsole
 			return await Task.FromResult(true);
 		}
 
-		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP)
+		public async Task<SMSwitchResponseVerifyOTP> VerifyOTP(MobileNumber mobileWithCountryCode, string OTP, CancellationToken cancellationToken = default)
 		{
 			if (RefusedInProduction("verify OTP", mobileWithCountryCode))
 			{
@@ -88,11 +88,10 @@ namespace SMSwitch.Services.DevConsole
 			try
 			{
 				TokenIdentifier tokenIdentifier = mobileWithCountryCode.CountryPhoneCodeAndPhoneNumber;
-				var verified = await _mongoDbTokenService.Validate(tokenIdentifier, OTP);
-				if (verified)
-				{
-					await _mongoDbTokenService.Consume(tokenIdentifier);
-				}
+				// Validate followed by Consume was two round trips, so two concurrent verifies
+				// of the same correct OTP could both succeed. ConsumeAndValidate claims the
+				// token in one atomic operation and leaves it alone when the guess is wrong.
+				var verified = await _mongoDbTokenService.ConsumeAndValidate(tokenIdentifier, OTP);
 				return new SMSwitchResponseVerifyOTP()
 				{
 					Verified = verified

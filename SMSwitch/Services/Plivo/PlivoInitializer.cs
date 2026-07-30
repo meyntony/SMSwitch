@@ -16,7 +16,7 @@ namespace SMSwitch.Services.Plivo
 		public PlivoInitializer(
 			IConfiguration configuration,
 			SettingsService settingsService,
-			ILogger<PlivoInitializer> logger): base(configuration)
+			ILogger<PlivoInitializer> logger) : base(configuration)
 		{
 			_settingsService = settingsService;
 			try
@@ -33,14 +33,13 @@ namespace SMSwitch.Services.Plivo
 						AuthId = plivoConfig["AuthId"]!,
 						AuthToken = plivoConfig["AuthToken"]!,
 						AppUuid = plivoConfig["AppUuid"]!,
-						SourceNumber = plivoConfig["SourceNumber"],
-						WebhookSecret = plivoConfig["WebhookSecret"]
+						SourceNumber = plivoConfig["SourceNumber"]
 					}
 				};
 
 				if (SMSwitchGeneralSettings.OtpLength != PlivoSettings.OtpLength)
 				{
-					logger.LogWarning($"Application is trying to set OTP length to {SMSwitchGeneralSettings.OtpLength} but Plivo is fixed at {PlivoSettings.OtpLength}");
+					logger.LogWarning("Application is trying to set OTP length to {RequestedOtpLength} but Plivo is fixed at {PlivoOtpLength}", SMSwitchGeneralSettings.OtpLength, PlivoSettings.OtpLength);
 				}
 
 				PlivoApi = new PlivoApi(PlivoSettings.PlivoPrivateSettings.AuthId, PlivoSettings.PlivoPrivateSettings.AuthToken);
@@ -49,17 +48,15 @@ namespace SMSwitch.Services.Plivo
 			{
 				logger.LogError(ex, "Unable to initialize Plivo");
 			}
-			
+
 		}
 
-		internal string NotificationUrl
-		{
-			get
-			{
-				var url = new Uri(_settingsService.BaseUri, $"{ConstantStrings.SMSwitchGroupName}{PlivoNotificationEndpoint.PlivoNotificationRoute}").ToString();
-				var webhookSecret = PlivoSettings?.PlivoPrivateSettings.WebhookSecret;
-				return string.IsNullOrWhiteSpace(webhookSecret) ? url : $"{url}?secret={Uri.EscapeDataString(webhookSecret)}";
-			}
-		}
+		/// <summary>
+		/// Carries no secret. A shared secret used to be appended as a query parameter, which put
+		/// it in Plivo's outbound logs, every proxy in between, and this server's access log.
+		/// Callbacks are authenticated by Plivo's request signature instead.
+		/// </summary>
+		internal string NotificationUrl =>
+			new Uri(_settingsService.BaseUri, $"{ConstantStrings.SMSwitchGroupName}{PlivoNotificationEndpoint.PlivoNotificationRoute}").ToString();
 	}
 }

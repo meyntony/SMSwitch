@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using SMSwitch.Common;
 
 namespace SMSwitch.Services.DevConsole
