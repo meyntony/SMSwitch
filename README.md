@@ -96,8 +96,18 @@ Add the following to your `appsettings.json` and adjust the values (keep real cr
 | `Controls:SessionTimeoutInSeconds` | No | Lifetime of an OTP session (default 240). |
 | `Controls:MaxRoundRobinAttempts` | No | How many times the provider priority list is repeated in the retry queue (default 1). |
 | `AndroidAppHash` | No | Your Android app hash for SMS Retriever auto-read. |
-| `OtpLength` | No | OTP digit count. Applied to Twilio; Plivo is fixed at 6 (a warning is logged if they differ). |
+| `OtpLength` | No | OTP digit count (default 6). See the note below — this writes to your Twilio account. |
+| `Twilio:RegisteredSenderPhoneNumber` | For plain SMS | Sender number for plain SMS via Twilio. Not needed for OTPs, which go through Twilio Verify. |
 | `Plivo:SourceNumber` | For plain SMS | Sender number for plain SMS via Plivo. Not needed for OTPs. |
+
+`Twilio:AccountSid`, `Twilio:AuthToken` and `Twilio:ServiceSid` are required to enable Twilio at
+all; if any is missing the provider is disabled with a logged warning rather than failing per send.
+The same goes for `Plivo:AuthId`, `Plivo:AuthToken` and `Plivo:AppUuid`.
+
+> **`OtpLength` writes to your Twilio account.** On startup SMSwitch calls the Twilio Verify API to
+> set the code length on the Verify **Service** identified by `ServiceSid`. That is account-side
+> configuration shared by everything using that service, not a per-request option. Plivo's length is
+> fixed at 6 and cannot be changed from here, so a warning is logged if the two disagree.
 
 #### Configuration errors fail at startup, not at send time
 
@@ -235,6 +245,11 @@ Put this in your `appsettings.Development.json`:
 ```
 
 As a safety measure the `DevConsole` provider refuses to operate when the app runs in the `Production` environment: it logs a critical error and reports the send as failed, so the provider queue falls through to a real provider if one is configured.
+
+> Outside `Production`, Plivo OTP sends skip delivery confirmation and report success as soon as the
+> Verify session is created, because the delivery webhook cannot reach a developer machine. Only
+> `Production` waits for the real notification, so a send that succeeds locally is not by itself
+> evidence that the message was delivered.
 
 ## Contributing
 
