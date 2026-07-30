@@ -49,6 +49,39 @@ namespace SMSwitch.Tests
 		}
 
 		/// <summary>
+		/// EarthCountriesInfo documents ValidLengthsAndFormat as null, not empty, when a country's
+		/// lengths are unknown. That null is what FeedbackAsync has to write into, and a plain $set
+		/// on a dotted path fails against BSON null, so this asserts the case is real rather than
+		/// theoretical. If it ever stops being real the pipeline update in FeedbackAsync could be
+		/// simplified back to a $set.
+		/// </summary>
+		[Fact]
+		public void Some_countries_have_no_known_lengths_at_all()
+		{
+			var countriesWithoutLengths = EarthCountriesInfo.Countries.CountryPropertiesDictionary
+				.Where(country => country.Value.ValidLengthsAndFormat is null)
+				.ToList();
+
+			Assert.NotEmpty(countriesWithoutLengths);
+		}
+
+		/// <summary>
+		/// The value is a display mask whose '#' count equals its length key. FeedbackAsync writes
+		/// `new string('#', length)`, so it has to satisfy the same invariant as the curated data.
+		/// </summary>
+		[Fact]
+		public void Every_curated_length_mask_has_one_hash_per_digit()
+		{
+			var masks = EarthCountriesInfo.Countries.CountryPropertiesDictionary
+				.Where(country => country.Value.ValidLengthsAndFormat is not null)
+				.SelectMany(country => country.Value.ValidLengthsAndFormat!)
+				.ToList();
+
+			Assert.NotEmpty(masks);
+			Assert.All(masks, entry => Assert.Equal(entry.Key, entry.Value.Count(character => character == '#')));
+		}
+
+		/// <summary>
 		/// The same equality, end to end: what MobileNumber produces has to match what the country
 		/// database stores, or the feedback filter silently matches nothing.
 		/// </summary>

@@ -1,6 +1,7 @@
 ﻿using EarthCountriesInfo;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDbService;
 using SMSwitch.Countries.Database.DTOs;
@@ -180,7 +181,24 @@ namespace SMSwitch.Countries.Database
 				& Builders<CountryInfo>.Filter.Eq(e => e.CountryPhoneCode, countryPhoneCode)
 				& Builders<CountryInfo>.Filter.Exists(lengthField, false);
 
-			var update = Builders<CountryInfo>.Update.Set(lengthField, new string('#', phoneNumberLength));
+			// EarthCountriesInfo leaves ValidLengthsAndFormat null, not empty, for a country whose
+			// lengths are unknown, and the driver stores that as BSON null. A plain $set on the
+			// dotted path fails against null with "Cannot create field ... in element", and the
+			// filter above matches in exactly that case, so the countries feedback is most useful
+			// for are the ones it would fail on. $ifNull materialises the document first.
+			// Requires MongoDB 4.2 or newer for pipeline updates.
+			var validLengthsAndFormat = $"${nameof(CountryInfo.ValidLengthsAndFormat)}";
+			var update = Builders<CountryInfo>.Update.Pipeline(new BsonDocument[]
+			{
+				new("$set", new BsonDocument(
+					nameof(CountryInfo.ValidLengthsAndFormat),
+					new BsonDocument("$mergeObjects", new BsonArray
+					{
+						new BsonDocument("$ifNull", new BsonArray { validLengthsAndFormat, new BsonDocument() }),
+						// The value is a display mask in which the number of '#' equals the length.
+						new BsonDocument(lengthKey, new string('#', phoneNumberLength))
+					})))
+			});
 
 			// Deliberately no upsert: feedback must never bring a country document into existence.
 			var result = await _countryPhoneCodeCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
