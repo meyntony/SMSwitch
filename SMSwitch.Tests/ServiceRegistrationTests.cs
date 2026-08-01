@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using SMSwitch.Common;
+using SMSwitch.Services.Plivo.Database;
 
 namespace SMSwitch.Tests
 {
@@ -65,6 +66,24 @@ namespace SMSwitch.Tests
 				Assert.Null(descriptor.ImplementationType);
 				Assert.NotNull(descriptor.ImplementationFactory);
 			});
+		}
+
+		/// <summary>
+		/// PlivoSession had no expiry index at all, so it kept a document for every number ever
+		/// texted. Creating that index needs PlivoDbService to be hosted, which is easy to leave out
+		/// again because the class works perfectly well without it.
+		/// </summary>
+		[Fact]
+		public void PlivoDbService_is_hosted_so_its_expiry_index_gets_created()
+		{
+			var services = new ServiceCollection();
+			services.AddSMSwitchServices();
+
+			Assert.Contains(services, descriptor =>
+				descriptor.ServiceType == typeof(PlivoDbService) && descriptor.Lifetime == ServiceLifetime.Singleton);
+
+			// CountryDbService, SMSwitchDbService and now PlivoDbService.
+			Assert.Equal(3, services.Count(descriptor => descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)));
 		}
 	}
 }

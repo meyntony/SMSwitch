@@ -29,6 +29,56 @@ namespace SMSwitch.Tests
 			Assert.Equal(1, controls.MaxRoundRobinAttempts);
 		}
 
+		/// <summary>
+		/// 30 days was hard-coded before this setting existed, so a deployment that does not configure
+		/// it must keep exactly the retention it already had. Silently lengthening it would extend how
+		/// long personal data is stored without anyone choosing that.
+		/// </summary>
+		[Fact]
+		public void Session_retention_defaults_to_the_previously_hard_coded_thirty_days()
+		{
+			Assert.Equal(30, Create(MinimumSettings()).SmsControls.SessionRetentionDays);
+		}
+
+		[Theory]
+		[InlineData("7", 7)]
+		[InlineData("90", 90)]
+		[InlineData("3650", 3650)]
+		public void Session_retention_is_read_from_configuration(string configured, int expected)
+		{
+			var settings = MinimumSettings();
+			settings["SMSwitchSettings:Controls:SessionRetentionDays"] = configured;
+
+			Assert.Equal(expected, Create(settings).SmsControls.SessionRetentionDays);
+		}
+
+		/// <summary>
+		/// Keeping the audit trail and pruning it some other way is a legitimate choice, so this is
+		/// honoured rather than rejected. The db services turn a non-positive value into "no TTL
+		/// index", and drop one a previous configuration left behind.
+		/// </summary>
+		[Theory]
+		[InlineData("0", 0)]
+		[InlineData("-1", -1)]
+		public void A_non_positive_session_retention_is_honoured(string configured, int expected)
+		{
+			var settings = MinimumSettings();
+			settings["SMSwitchSettings:Controls:SessionRetentionDays"] = configured;
+
+			Assert.Equal(expected, Create(settings).SmsControls.SessionRetentionDays);
+		}
+
+		[Theory]
+		[InlineData("not-a-number")]
+		[InlineData("30 days")]
+		public void An_unparseable_session_retention_falls_back_to_the_default(string configured)
+		{
+			var settings = MinimumSettings();
+			settings["SMSwitchSettings:Controls:SessionRetentionDays"] = configured;
+
+			Assert.Equal(30, Create(settings).SmsControls.SessionRetentionDays);
+		}
+
 		[Fact]
 		public void Controls_are_read_from_configuration()
 		{

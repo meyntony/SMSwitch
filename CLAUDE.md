@@ -75,8 +75,19 @@ These are all non-obvious and have caused real bugs:
   a plain `$set` on the dotted path fails against BSON null. `FeedbackAsync` uses a pipeline update
   with `$ifNull`, which needs **MongoDB 4.2+**.
 
-Indexes are created in `SMSwitchDbService.StartAsync` (registered as a hosted service), not
-fire-and-forget from a constructor. Sessions are removed 30 days after expiry by a TTL index.
+Indexes are created in `StartAsync` on hosted services (`SMSwitchDbService`, `PlivoDbService`,
+`CountryDbService`), not fire-and-forget from a constructor. `PlivoDbService` is hosted *only* to
+create its expiry index — it works fine without being hosted, which is exactly why the registration
+is easy to drop, so a test guards it.
+
+Retention is `Controls:SessionRetentionDays`, default 30, applied to `SMSwitchSession`,
+`SMSwitchSendSMSSession` and `PlivoSession`. All three go through `Database/TtlIndexes.cs`, which
+exists because these indexes are created from `StartAsync`: an unhandled `IndexOptionsConflict` (85)
+or `IndexKeySpecsConflict` (86) there does not degrade a query, it stops the application booting. So
+changing the setting is applied with `collMod` against the index's *looked-up* name, and a
+non-positive value **drops** the index rather than merely skipping creation — otherwise disabling
+retention would silently do nothing on any deployment that already had one. The matcher requires a
+single-key index so it cannot amend or drop one of the lookup indexes.
 
 ## Configuration
 

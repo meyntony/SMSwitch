@@ -33,6 +33,7 @@ namespace SMSwitch
 
 			services.AddSingleton<PlivoInitializer>();
 			services.AddSingleton<PlivoDbService>();
+			services.AddHostedService(sp => sp.GetRequiredService<PlivoDbService>());
 			services.AddScoped<PlivoService>();
 
 			services.AddMongoDbTokenServices();

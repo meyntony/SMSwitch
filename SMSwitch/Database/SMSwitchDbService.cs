@@ -1,5 +1,6 @@
 ﻿using Meyn.Utilities;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDbService;
@@ -21,16 +22,25 @@ namespace SMSwitch.Database
 		/// </summary>
 		private const int MaximumCandidateSessionsToConsider = 10;
 
+		private readonly ILogger<SMSwitchDbService> _logger;
+
 		/// <summary>
-		/// Sessions are the audit trail, so they outlive their usefulness for verification by a
-		/// grace period rather than disappearing the moment they lapse.
+		/// Sessions are the audit trail, so they outlive their usefulness for verification by a grace
+		/// period rather than disappearing the moment they lapse. How long is
+		/// <c>SMSwitchSettings:Controls:SessionRetentionDays</c>; null keeps them indefinitely.
 		/// </summary>
-		private static readonly TimeSpan SessionRetentionAfterExpiry = TimeSpan.FromDays(30);
+		private TimeSpan? SessionRetentionAfterExpiry =>
+			_smSwitchInitializer.SmsControls.SessionRetentionDays > 0
+				? TimeSpan.FromDays(_smSwitchInitializer.SmsControls.SessionRetentionDays)
+				: null;
+
 		public SMSwitchDbService(
 			MongoService mongoService,
-			SMSwitchInitializer smSwitchInitializer)
+			SMSwitchInitializer smSwitchInitializer,
+			ILogger<SMSwitchDbService> logger)
 		{
 			_smSwitchInitializer = smSwitchInitializer;
+			_logger = logger;
 
 			_smSwitchSessionCollection = mongoService.Database.GetCollection<SMSwitchSession>(nameof(SMSwitchSession), new MongoCollectionSettings() { ReadConcern = ReadConcern.Majority, WriteConcern = WriteConcern.WMajority });
 
@@ -56,17 +66,19 @@ namespace SMSwitch.Database
 			// The driver stores a DateTimeOffset as a { DateTime, Ticks, Offset } document, and a
 			// TTL index needs a real BSON date, so these go on the DateTime sub-field rather than
 			// on ExpiryTimeUTC itself.
-			await _smSwitchSessionCollection.Indexes.CreateOneAsync(
-				new CreateIndexModel<SMSwitchSession>(
-					new BsonDocument($"{nameof(SMSwitchSession.ExpiryTimeUTC)}.DateTime", 1),
-					new CreateIndexOptions { ExpireAfter = SessionRetentionAfterExpiry }),
-				cancellationToken: cancellationToken);
+			await TtlIndexes.EnsureAsync(
+				_smSwitchSessionCollection,
+				$"{nameof(SMSwitchSession.ExpiryTimeUTC)}.DateTime",
+				SessionRetentionAfterExpiry,
+				_logger,
+				cancellationToken);
 
-			await _smSwitchSendSmsSessionCollection.Indexes.CreateOneAsync(
-				new CreateIndexModel<SMSwitchSendSMSSession>(
-					new BsonDocument($"{nameof(SMSwitchSendSMSSession.ExpiryTimeUTC)}.DateTime", 1),
-					new CreateIndexOptions { ExpireAfter = SessionRetentionAfterExpiry }),
-				cancellationToken: cancellationToken);
+			await TtlIndexes.EnsureAsync(
+				_smSwitchSendSmsSessionCollection,
+				$"{nameof(SMSwitchSendSMSSession.ExpiryTimeUTC)}.DateTime",
+				SessionRetentionAfterExpiry,
+				_logger,
+				cancellationToken);
 		}
 
 		public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
