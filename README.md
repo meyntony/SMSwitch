@@ -21,7 +21,9 @@ For each phone number, SMSwitch builds a queue of providers from your configured
 
 Provider priority is an ordered list, and repeats are meaningful: `[ "Twilio", "Plivo", "Twilio" ]` is a valid priority that tries Twilio, then Plivo, then Twilio again.
 
-Sessions are kept for **30 days after they expire** and are then removed automatically by a MongoDB TTL index, so the audit trail stays available for recent activity without the collections growing without bound. SMSwitch creates the indexes it needs at startup.
+Sessions are kept for `Controls:SessionRetentionDays` after they expire — **30 days** by default — and are then removed automatically by a MongoDB TTL index, so the audit trail stays available for recent activity without the collections growing without bound. The same setting governs the `PlivoSession` records. SMSwitch creates the indexes it needs at startup.
+
+Sessions hold the phone number, so set this to whatever your data-retention policy allows rather than leaving it to grow. `0` or less keeps everything indefinitely and removes the expiry index if one is already there. Note a TTL index gives time-based expiry, not erasure of one person's data on request.
 
 ## Getting started
 
@@ -95,6 +97,7 @@ Add the following to your `appsettings.json` and adjust the values (keep real cr
 | `Controls:MaximumFailedAttemptsToVerify` | No | Failed verification attempts before a session expires (default 3). |
 | `Controls:SessionTimeoutInSeconds` | No | Lifetime of an OTP session (default 240). |
 | `Controls:MaxRoundRobinAttempts` | No | How many times the provider priority list is repeated in the retry queue (default 1). |
+| `Controls:SessionRetentionDays` | No | Days a session is kept after it expires, before a TTL index removes it (default 30). `0` or less keeps them indefinitely. Also applies to `PlivoSession`. |
 | `AndroidAppHash` | No | Your Android app hash for SMS Retriever auto-read. |
 | `OtpLength` | No | OTP digit count (default 6). See the note below — this writes to your Twilio account. |
 | `Twilio:RegisteredSenderPhoneNumber` | For plain SMS | Sender number for plain SMS via Twilio. Not needed for OTPs, which go through Twilio Verify. |

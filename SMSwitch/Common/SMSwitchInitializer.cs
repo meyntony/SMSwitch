@@ -5,6 +5,13 @@ namespace SMSwitch.Common
 {
 	public sealed class SMSwitchInitializer
 	{
+		/// <summary>
+		/// Days a session is kept after expiry when nothing is configured. This was the hard-coded
+		/// value before the setting existed, so leaving it unset keeps the previous behaviour rather
+		/// than silently lengthening retention on an existing deployment.
+		/// </summary>
+		internal const int DefaultSessionRetentionDays = 30;
+
 		public readonly SmsControls SmsControls;
 		public SMSwitchInitializer(IConfiguration configuration, ILogger<SMSwitchInitializer> logger)
 		{
@@ -14,9 +21,37 @@ namespace SMSwitch.Common
 				MaximumFailedAttemptsToVerify = byte.TryParse(smsControlsConfig["MaximumFailedAttemptsToVerify"], out byte maximumFailedAttemptsToVerify) ? maximumFailedAttemptsToVerify : (byte)3,
 				SessionTimeoutInSeconds = int.TryParse(smsControlsConfig["SessionTimeoutInSeconds"], out int sessionTimeoutInSeconds) ? sessionTimeoutInSeconds : 240,
 				MaxRoundRobinAttempts = byte.TryParse(smsControlsConfig["MaxRoundRobinAttempts"], out byte maxRoundRobinAttempts) ? maxRoundRobinAttempts : (byte)1,
+				SessionRetentionDays = getSessionRetentionDays(smsControlsConfig, logger),
 				PriorityBasedOnCountryPhoneCode = getPriorityBasedOnCountryPhoneCode(smsControlsConfig, logger),
 				FallBackPriority = getFallBackPriority(smsControlsConfig.GetRequiredSection("FallBackPriority").Get<string[]>() ?? [], logger)
 			};
+		}
+
+		/// <summary>
+		/// Never fails startup. Zero or less is a legitimate operator choice - keep the audit trail
+		/// and prune it some other way - rather than a misconfiguration, so it is logged and honoured.
+		/// </summary>
+		private static int getSessionRetentionDays(IConfigurationSection smsControlsConfig, ILogger logger)
+		{
+			var configured = smsControlsConfig["SessionRetentionDays"];
+
+			if (string.IsNullOrWhiteSpace(configured))
+			{
+				return DefaultSessionRetentionDays;
+			}
+
+			if (!int.TryParse(configured, out var sessionRetentionDays))
+			{
+				logger.LogWarning("SMSwitchSettings:Controls:SessionRetentionDays is not a number, falling back to {DefaultSessionRetentionDays} days.", DefaultSessionRetentionDays);
+				return DefaultSessionRetentionDays;
+			}
+
+			if (sessionRetentionDays <= 0)
+			{
+				logger.LogWarning("SMSwitchSettings:Controls:SessionRetentionDays is {SessionRetentionDays}, so sessions are kept indefinitely and the collections will grow without bound.", sessionRetentionDays);
+			}
+
+			return sessionRetentionDays;
 		}
 
 		private static Dictionary<string, List<SmsProvider>> getPriorityBasedOnCountryPhoneCode(IConfigurationSection smsControlsConfig, ILogger logger)

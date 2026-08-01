@@ -1,21 +1,53 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using MongoDbService;
+using SMSwitch.Common;
 using SMSwitch.Common.DTOs;
+using SMSwitch.Database;
 using SMSwitch.Services.Plivo.Database.DTOs;
 
 namespace SMSwitch.Services.Plivo.Database
 {
-	public sealed class PlivoDbService
+	public sealed class PlivoDbService : IHostedService
 	{
 		private IMongoCollection<PlivoSession> _plivoSessionCollection;
 		private IWebHostEnvironment _hostingEnvironment;
-		public PlivoDbService(MongoService mongoService, IWebHostEnvironment hostingEnvironment)
+		private readonly SMSwitchInitializer _smSwitchInitializer;
+		private readonly ILogger<PlivoDbService> _logger;
+
+		public PlivoDbService(
+			MongoService mongoService,
+			IWebHostEnvironment hostingEnvironment,
+			SMSwitchInitializer smSwitchInitializer,
+			ILogger<PlivoDbService> logger)
 		{
 			_plivoSessionCollection = mongoService.Database.GetCollection<PlivoSession>(nameof(PlivoSession), new MongoCollectionSettings() { ReadConcern = ReadConcern.Majority, WriteConcern = WriteConcern.WMajority });
 			_hostingEnvironment = hostingEnvironment;
+			_smSwitchInitializer = smSwitchInitializer;
+			_logger = logger;
 		}
+
+		/// <summary>
+		/// This collection had no expiry at all, so it kept a document for every number ever texted,
+		/// for good. The document is keyed by number and replaced on each new send, so TimeStamp
+		/// tracks the most recent one and the TTL reaps numbers that have gone quiet. Retention
+		/// follows the same SessionRetentionDays setting as the session collections.
+		/// </summary>
+		public async Task StartAsync(CancellationToken cancellationToken)
+		{
+			var sessionRetentionDays = _smSwitchInitializer.SmsControls.SessionRetentionDays;
+
+			await TtlIndexes.EnsureAsync(
+				_plivoSessionCollection,
+				$"{nameof(PlivoSession.TimeStamp)}.DateTime",
+				sessionRetentionDays > 0 ? TimeSpan.FromDays(sessionRetentionDays) : null,
+				_logger,
+				cancellationToken);
+		}
+
+		public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
 		internal async Task SetLatestSessionUUID(MobileNumber mobileWithCountryCode, string sessionUUID, CancellationToken cancellationToken = default)
 		{
